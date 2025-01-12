@@ -98,4 +98,4 @@ We welcome contributions! To contribute:
 This project is licensed under the [MIT License](LICENSE).
 
 ## Contact 📧
-For questions or feedback, feel free to contact me at [mwinamijr@gmail.com](mwinamijr) or [techdometz@gmail.com](Techdometz).
+For questions or feedback, feel free to contact me at [mwinamijr](mwinamijr@gmail.com) or [techdometz](techdometz@gmail.com).
