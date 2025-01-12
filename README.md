@@ -14,7 +14,7 @@ A robust and user-friendly **Hospital Management System** built with **Django**.
 
 ## Tech Stack 🛠️
 - **Backend**: Django (Python)
-- **Frontend**: React Js (HTML5, CSS3, JavaScript)
+- **Frontend**: React Js (HTML5, CSS3, JavaScript) [React-hms repository](https://github.com/mwinamijr/react-hms.git)
 - **Database**: PostgreSQL (easily switchable to MySQL, etc.)
 - **Deployment**: Configured for deployment on platforms like Heroku or AWS.
 
