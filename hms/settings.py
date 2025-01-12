@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "debug_toolbar",
+    "core.apps.CoreConfig",
     "users.apps.UsersConfig",
 ]
 
