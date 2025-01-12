@@ -1,5 +1,14 @@
 from rest_framework import serializers
-from .models import Patient, Visit, Payment, Vitals
+from .models import (
+    Patient,
+    Visit,
+    Payment,
+    Vitals,
+    MedicalHistory,
+    Test,
+    Prescription,
+    Invoice,
+)
 
 
 class PatientSerializer(serializers.ModelSerializer):
@@ -23,4 +32,28 @@ class PaymentSerializer(serializers.ModelSerializer):
 class VitalsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vitals
+        fields = "__all__"
+
+
+class MedicalHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MedicalHistory
+        fields = "__all__"
+
+
+class TestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Test
+        fields = "__all__"
+
+
+class PrescriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Prescription
+        fields = "__all__"
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Invoice
         fields = "__all__"

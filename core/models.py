@@ -5,6 +5,7 @@ from users.models import Department
 
 class Patient(models.Model):
     first_name = models.CharField(max_length=50)
+    middle_name = models.CharField(max_length=50, null=True, blank=True)
     last_name = models.CharField(max_length=50)
     date_of_birth = models.DateField()
     email = models.EmailField(unique=True)
@@ -67,3 +68,50 @@ class Vitals(models.Model):
 
     def __str__(self):
         return f"Vitals for {self.visit}"
+
+
+class MedicalHistory(models.Model):
+    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
+    doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
+    notes = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"History for {self.visit.patient} by {self.doctor}"
+
+
+class Test(models.Model):
+    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
+    test_type = models.CharField(max_length=100)
+    result = models.TextField(null=True, blank=True)
+    conducted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    is_completed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.test_type} for {self.visit}"
+
+
+class Prescription(models.Model):
+    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
+    doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
+    medicines = models.TextField()  # e.g., "Paracetamol 500mg x3, Ibuprofen 400mg x2"
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Prescription for {self.visit.patient}"
+
+
+class Invoice(models.Model):
+    visit = models.OneToOneField("Visit", on_delete=models.CASCADE)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    is_paid = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Invoice for {self.visit.patient}"

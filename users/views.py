@@ -6,7 +6,7 @@ from .serializers import UserSerializer, DepartmentSerializer
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAdminUser]  # Restrict access to admins only
+    # permission_classes = [permissions.IsAdminUser]  # Restrict access to admins only
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
