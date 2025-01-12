@@ -1,21 +1,20 @@
-# Hospital Management System 🚑
+# Hospital Management System API 🚑
 
-A robust and user-friendly **Hospital Management System** built with **Django**. This system streamlines hospital operations by providing tools for managing patients, doctors, appointments, and medical records, all within a secure and efficient web-based platform.
+A robust and scalable **Hospital Management System API** built with **Django** and **Django REST Framework (DRF)**. This backend system is designed to provide secure and efficient APIs for managing hospital operations such as patients, doctors, appointments, and medical records. Authentication is handled using **JWT (JSON Web Tokens)** to ensure secure access.
 
 ## Features 🌟
-- **Patient Management**: Register new patients, update records, and view patient history.
-- **Doctor Management**: Add and manage doctor profiles, specializations, and schedules.
-- **Appointment Scheduling**: Allow patients to book appointments and assign them to available doctors.
-- **Medical Records**: Maintain and retrieve detailed medical histories and prescriptions.
-- **User Roles**: Role-based access control for administrators, doctors, and staff.
-- **Dashboard**: Overview of hospital activities with real-time updates.
-- **Responsive Design**: Fully functional on both desktop and mobile devices.
-- **Secure Authentication**: User authentication and authorization using Django's built-in features.
+- **Patient Management API**: Endpoints to create, update, and retrieve patient records.
+- **Doctor Management API**: Endpoints to manage doctor profiles, specializations, and schedules.
+- **Appointment Scheduling API**: APIs to book and manage appointments.
+- **Medical Records API**: Endpoints for maintaining and accessing detailed medical histories and prescriptions.
+- **Role-Based Access Control**: Secure APIs with role-specific permissions for administrators, doctors, and staff.
+- **JWT Authentication**: Secure token-based authentication for all endpoints.
 
 ## Tech Stack 🛠️
 - **Backend**: Django (Python)
-- **Frontend**: React Js (HTML5, CSS3, JavaScript) [React-hms repository](https://github.com/mwinamijr/react-hms.git)
-- **Database**: PostgreSQL (easily switchable to MySQL, etc.)
+- **API Framework**: Django REST Framework (DRF)
+- **Authentication**: JSON Web Tokens (JWT)
+- **Database**: PostgreSQL
 - **Deployment**: Configured for deployment on platforms like Heroku or AWS.
 
 ## Setup Instructions 🖥️
@@ -24,7 +23,7 @@ Follow these steps to set up the project on your local machine:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/mwinamijr/django-hms.git
+   git clone https://github.com/your-username/django-hms.git
    ```
 
 2. Navigate to the project directory:
@@ -43,25 +42,39 @@ Follow these steps to set up the project on your local machine:
    pip install -r requirements.txt
    ```
 
-5. Run database migrations:
+5. Configure the database in the `settings.py` file to connect to PostgreSQL:
+   ```python
+   DATABASES = {
+       'default': {
+           'ENGINE': 'django.db.backends.postgresql',
+           'NAME': 'your-database-name',
+           'USER': 'your-database-user',
+           'PASSWORD': 'your-database-password',
+           'HOST': 'localhost',
+           'PORT': '5432',
+       }
+   }
+   ```
+
+6. Run database migrations:
    ```bash
    python manage.py migrate
    ```
 
-6. Create a superuser account to access the admin panel:
+7. Create a superuser account to access the admin panel:
    ```bash
    python manage.py createsuperuser
    ```
 
-7. Start the development server:
+8. Start the development server:
    ```bash
    python manage.py runserver
    ```
 
-8. Access the system at `http://127.0.0.1:8000`.
+9. Access the API at `http://127.0.0.1:8000`.
 
-## Screenshots 📸
-_Add screenshots here to showcase your project’s features!_
+## API Documentation 📜
+This project uses Django REST Framework's built-in API documentation or can be extended with tools like Swagger or Postman collections for better visualization.
 
 ## Contributing 🤝
 We welcome contributions! To contribute:
