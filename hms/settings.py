@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "debug_toolbar",
+    "users.apps.UsersConfig",
 ]
 
 MIDDLEWARE = [
@@ -166,7 +167,7 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-# AUTH_USER_MODEL = "users.CustomUser"
+AUTH_USER_MODEL = "users.CustomUser"
 
 INTERNAL_IPS = [
     "127.0.0.1",
