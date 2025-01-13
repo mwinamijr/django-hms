@@ -7,28 +7,18 @@ from core.views import (
     TestAPIView,
     CompleteTestAPIView,
     PrescriptionAPIView,
-    PayInvoiceAPIView,
     PatientListView,
     PatientDetailView,
     TestListView,
     TestDetailView,
     AssignTestsView,
-    GenerateTestPaymentView,
     RecordTestResultView,
     PrescriptionListView,
     PrescriptionDetailView,
     DispenseMedicinesView,
     AddPrescriptionView,
-    GenerateMedicinePaymentView,
-    InvoiceListView,
-    InvoiceDetailView,
-    GenerateInsuranceTestInvoiceView,
-    GenerateInsurancePrescriptionInvoiceView,
-    GenerateInsuranceConsultationInvoiceView,
-    SubmitToInsuranceView,
     VisitListView,
     VisitDetailView,
-    CompletePaymentView,
     CompleteVisitView,
 )
 
@@ -75,12 +65,6 @@ urlpatterns = [
     path("tests/<int:pk>/", TestDetailView.as_view(), name="test_detail"),
     # URL for assigning tests to a patient during a visit
     path("tests/assign-tests/", AssignTestsView.as_view(), name="assign_tests"),
-    # URL for generating a payment for assigned tests
-    path(
-        "tests/generate-test-payment/",
-        GenerateTestPaymentView.as_view(),
-        name="generate_test_payment",
-    ),
     # URL for recording test results
     path(
         "tests/record-test-result/",
@@ -107,44 +91,6 @@ urlpatterns = [
     ),
     # Add Prescription URL
     path("add-prescription/", AddPrescriptionView.as_view(), name="add-prescription"),
-    # Generate Payment for Medicines URL
-    path(
-        "generate-medicine-payment/",
-        GenerateMedicinePaymentView.as_view(),
-        name="generate-medicine-payment",
-    ),
     # Invoices
-    path(
-        "payment/complete-payment",
-        CompletePaymentView.as_view(),
-        name="complete-payment",
-    ),
     path("complete-visit/", CompleteVisitView.as_view(), name="complete-visit"),
-    path(
-        "invoices/<int:invoice_id>/pay/",
-        PayInvoiceAPIView.as_view(),
-        name="pay_invoice",
-    ),
-    path("invoices/", InvoiceListView.as_view(), name="invoice_list"),
-    path("invoices/<int:pk>/", InvoiceDetailView.as_view(), name="invoice_detail"),
-    path(
-        "generate-insurance-consultation-invoice/",
-        GenerateInsuranceConsultationInvoiceView.as_view(),
-        name="generate-insurance-consultation-invoice",
-    ),
-    path(
-        "generate-insurance-test-invoice/",
-        GenerateInsuranceTestInvoiceView.as_view(),
-        name="generate-insurance-test-invoice",
-    ),
-    path(
-        "generate-insurance-prescription-invoice/",
-        GenerateInsurancePrescriptionInvoiceView.as_view(),
-        name="generate-insurance-prescription-invoice",
-    ),
-    path(
-        "submit-to-insurance/",
-        SubmitToInsuranceView.as_view(),
-        name="submit-to-insurance",
-    ),
 ]
