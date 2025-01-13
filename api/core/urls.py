@@ -1,7 +1,7 @@
 from django.urls import path
 from core.views import (
     AssignDoctorView,
-    MedicalHistoryAPIView,
+    DoctorConsultationView,
     MedicalHistoryListView,
     MedicalHistoryDetailView,
     TestAPIView,
@@ -37,12 +37,13 @@ urlpatterns = [
         AssignDoctorView.as_view(),
         name="assign_doctor",
     ),
-    # Medical History
+    # URL to handle doctor's consultation for a patient
     path(
-        "histories/<int:visit_id>/",
-        MedicalHistoryAPIView.as_view(),
-        name="medical_history",
+        "api/doctor-consultation/",
+        DoctorConsultationView.as_view(),
+        name="doctor-consultation",
     ),
+    # Medical History
     path(
         "medical-history/",
         MedicalHistoryListView.as_view(),

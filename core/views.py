@@ -221,23 +221,79 @@ class AssignDoctorView(APIView):
             )
 
 
-# --- Medical History ---
-class MedicalHistoryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, visit_id):
-        histories = MedicalHistory.objects.filter(visit_id=visit_id)
-        serializer = MedicalHistorySerializer(histories, many=True)
-        return Response(serializer.data)
-
+class DoctorConsultationView(APIView):
     def post(self, request):
-        serializer = MedicalHistorySerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        """
+        Handle the doctor's consultation for a patient.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            doctor_id = request.data.get("doctor_id")
+            new_history = request.data.get("new_history")
+
+            # Validate if all required fields are provided
+            if not all([visit_id, doctor_id, new_history]):
+                return Response(
+                    {
+                        "detail": "Missing required fields: visit_id, doctor_id, and new_history are required."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit and ensure the doctor is assigned to it
+            try:
+                visit = Visit.objects.get(id=visit_id)
+            except Visit.DoesNotExist:
+                return Response(
+                    {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            try:
+                doctor = User.objects.get(id=doctor_id, role="doctor")
+            except User.DoesNotExist:
+                return Response(
+                    {"detail": "Doctor not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Ensure the doctor is assigned to this visit
+            if visit.assigned_doctor != doctor:
+                return Response(
+                    {"detail": "Doctor is not assigned to this visit."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Fetch previous medical histories of the patient
+            previous_histories = MedicalHistory.objects.filter(patient=visit.patient)
+
+            # Create a new medical history entry for the current consultation
+            MedicalHistory.objects.create(
+                visit=visit,
+                patient=visit.patient,
+                description=new_history,
+                recorded_by=doctor,
+            )
+
+            # Return the previous histories and a success message
+            return Response(
+                {
+                    "detail": "Consultation completed.",
+                    "previous_histories": [
+                        {"id": h.id, "description": h.description, "date": h.created_at}
+                        for h in previous_histories
+                    ],
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            # Log the error for debugging purposes and send a generic error message
+            return Response(
+                {"detail": f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
+# --- Medical History ---
 class MedicalHistoryListView(APIView):
     permission_classes = [IsAuthenticated]
 

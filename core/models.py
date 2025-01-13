@@ -96,15 +96,24 @@ class Vitals(models.Model):
 
 
 class MedicalHistory(models.Model):
-    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
-    doctor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    visit = models.ForeignKey(
+        "Visit", on_delete=models.CASCADE, related_name="histories"
     )
-    notes = models.TextField()
+    patient = models.ForeignKey(
+        "Patient", on_delete=models.CASCADE, related_name="histories"
+    )
+    description = models.TextField()
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"History for {self.visit.patient} by {self.doctor}"
+        return f"History for {self.patient} - {self.created_at}"
+
+    class Meta:
+        verbose_name = "Medical History"
+        verbose_name_plural = "Medical Histories"
 
 
 class Test(models.Model):
