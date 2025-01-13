@@ -953,26 +953,266 @@ class CompleteVisitView(APIView):
             )
 
 
-# --- Invoice Management ---
-class InvoiceAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# --- Invoice For Insured Patients Management ---
 
-    def get(self, request, visit_id):
+
+class GenerateInsuranceConsultationInvoiceView(APIView):
+    def post(self, request):
+        """
+        Generate a consultation invoice for insurance patients.
+        """
         try:
-            invoice = Invoice.objects.get(visit_id=visit_id)
-            serializer = InvoiceSerializer(invoice)
-            return Response(serializer.data)
-        except Invoice.DoesNotExist:
-            return Response(
-                {"error": "Invoice not found"}, status=status.HTTP_404_NOT_FOUND
+            visit_id = request.data.get("visit_id")
+            consultation_fee = request.data.get(
+                "consultation_fee"
+            )  # e.g., from configuration
+            insurance_provider = request.data.get("insurance_provider")
+            insurance_policy_number = request.data.get("insurance_policy_number")
+
+            if not all(
+                [
+                    visit_id,
+                    consultation_fee,
+                    insurance_provider,
+                    insurance_policy_number,
+                ]
+            ):
+                return Response(
+                    {"detail": "Missing required fields."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit associated with the given visit_id
+            visit = Visit.objects.get(id=visit_id)
+
+            # Create or update the invoice
+            invoice, created = Invoice.objects.get_or_create(
+                visit=visit,
+                defaults={
+                    "total_amount": consultation_fee,
+                    "is_insurance": True,
+                    "insurance_provider": insurance_provider,
+                    "insurance_policy_number": insurance_policy_number,
+                },
             )
 
+            if not created:
+                # If the invoice already exists, add the consultation fee to the total
+                invoice.total_amount += consultation_fee
+                invoice.save()
+
+            return Response(
+                {
+                    "detail": "Consultation invoice generated successfully for insurance.",
+                    "invoice_id": invoice.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Visit.DoesNotExist:
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class GenerateInsuranceTestInvoiceView(APIView):
     def post(self, request):
-        serializer = InvoiceSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        """
+        Generate an invoice for insurance patients based on tests.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            insurance_provider = request.data.get("insurance_provider")
+            insurance_policy_number = request.data.get("insurance_policy_number")
+
+            if not all([visit_id, insurance_provider, insurance_policy_number]):
+                return Response(
+                    {"detail": "Missing required fields."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit associated with the given visit_id
+            visit = Visit.objects.get(id=visit_id)
+
+            # Fetch all the tests for the visit that are completed
+            tests = Test.objects.filter(visit=visit, status="completed")
+            if not tests.exists():
+                return Response(
+                    {"detail": "No completed tests found for the visit."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            total_amount = sum(test.price for test in tests)
+
+            # Create or update the invoice
+            invoice, created = Invoice.objects.get_or_create(
+                visit=visit,
+                defaults={
+                    "total_amount": total_amount,
+                    "is_insurance": True,
+                    "insurance_provider": insurance_provider,
+                    "insurance_policy_number": insurance_policy_number,
+                },
+            )
+
+            if not created:
+                # If the invoice already exists, add the total test fee to the existing invoice
+                invoice.total_amount += total_amount
+                invoice.save()
+
+            return Response(
+                {
+                    "detail": "Test invoice generated successfully for insurance.",
+                    "invoice_id": invoice.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Visit.DoesNotExist:
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class GenerateInsurancePrescriptionInvoiceView(APIView):
+    def post(self, request):
+        """
+        Generate an invoice for insurance patients based on prescriptions.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            insurance_provider = request.data.get("insurance_provider")
+            insurance_policy_number = request.data.get("insurance_policy_number")
+
+            if not all([visit_id, insurance_provider, insurance_policy_number]):
+                return Response(
+                    {"detail": "Missing required fields."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit associated with the given visit_id
+            visit = Visit.objects.get(id=visit_id)
+
+            # Fetch all prescriptions for the visit
+            prescriptions = Prescription.objects.filter(visit=visit)
+            if not prescriptions.exists():
+                return Response(
+                    {"detail": "No prescriptions found for the visit."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            total_amount = sum(prescription.price for prescription in prescriptions)
+
+            # Create or update the invoice
+            invoice, created = Invoice.objects.get_or_create(
+                visit=visit,
+                defaults={
+                    "total_amount": total_amount,
+                    "is_insurance": True,
+                    "insurance_provider": insurance_provider,
+                    "insurance_policy_number": insurance_policy_number,
+                },
+            )
+
+            if not created:
+                # If the invoice already exists, add the total prescription fee to the existing invoice
+                invoice.total_amount += total_amount
+                invoice.save()
+
+            return Response(
+                {
+                    "detail": "Prescription invoice generated successfully for insurance.",
+                    "invoice_id": invoice.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Visit.DoesNotExist:
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class SubmitToInsuranceView(APIView):
+    def post(self, request):
+        """
+        Submit all invoices for a visit to the insurance provider.
+        """
+        try:
+            # Get visit ID from the request body
+            visit_id = request.data.get("visit_id")
+
+            # Check if visit ID is provided
+            if not visit_id:
+                return Response(
+                    {"detail": "Visit ID is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit object associated with the visit_id
+            visit = Visit.objects.get(id=visit_id)
+
+            # Fetch all invoices for the visit that are insurance-related and unpaid
+            invoices = Invoice.objects.filter(
+                visit=visit, is_insurance=True, is_paid=False
+            )
+
+            # Check if there are any pending insurance invoices
+            if not invoices.exists():
+                return Response(
+                    {"detail": "No pending insurance invoices found."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            """
+
+            Notes:
+            Real Integration: In a real-world scenario, rather than just marking invoices as "paid", 
+            you might integrate this view with an insurance provider’s API to submit the invoice for processing, 
+            and receive confirmation that it was accepted or rejected.
+
+            Logging: For production environments, consider using Django’s built-in logging system (logging module) 
+            instead of print() statements for better traceability and monitoring.
+            
+            """
+            # Process each invoice, simulating submission to the insurance provider
+            for invoice in invoices:
+                # Here we simulate the process of submitting the invoice by marking it as paid
+                invoice.is_paid = True
+                invoice.save()
+
+                # Log the submission for each invoice (optional for debugging or audit purposes)
+                # You could also add a real submission logic here (e.g., API call to insurance provider)
+                print(
+                    f"Invoice {invoice.id} submitted to insurance and marked as paid."
+                )
+
+            return Response(
+                {"detail": "All invoices submitted to insurance successfully."},
+                status=status.HTTP_200_OK,
+            )
+
+        except Visit.DoesNotExist:
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        except Exception as e:
+            # If any unexpected error occurs, we return the error details in the response
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class PayInvoiceAPIView(APIView):

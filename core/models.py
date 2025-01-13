@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from users.models import Department
 
 
@@ -186,16 +187,23 @@ class Prescription(models.Model):
 
 
 class Invoice(models.Model):
-    invoice_number = models.CharField(max_length=50, unique=True)
     visit = models.OneToOneField("Visit", on_delete=models.CASCADE)
-    payments = models.ManyToManyField(Payment, related_name="invoices")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     is_paid = models.BooleanField(default=False)
+    is_insurance = models.BooleanField(default=False)
+    insurance_provider = models.CharField(max_length=255, null=True, blank=True)
+    insurance_policy_number = models.CharField(max_length=100, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    due_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"Invoice for {self.visit.patient}"
+        return f"Invoice for {self.visit.patient} - Insurance: {self.is_insurance}"
+
+    def clean(self):
+        if self.is_insurance:
+            if not self.insurance_provider or not self.insurance_policy_number:
+                raise ValidationError(
+                    "Insurance provider and policy number must be provided if insurance is selected."
+                )
 
 
 class InvoiceItem(models.Model):

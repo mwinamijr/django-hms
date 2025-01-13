@@ -7,7 +7,6 @@ from core.views import (
     TestAPIView,
     CompleteTestAPIView,
     PrescriptionAPIView,
-    InvoiceAPIView,
     PayInvoiceAPIView,
     PatientListView,
     PatientDetailView,
@@ -23,6 +22,10 @@ from core.views import (
     GenerateMedicinePaymentView,
     InvoiceListView,
     InvoiceDetailView,
+    GenerateInsuranceTestInvoiceView,
+    GenerateInsurancePrescriptionInvoiceView,
+    GenerateInsuranceConsultationInvoiceView,
+    SubmitToInsuranceView,
     VisitListView,
     VisitDetailView,
     CompletePaymentView,
@@ -117,7 +120,6 @@ urlpatterns = [
         name="complete-payment",
     ),
     path("complete-visit/", CompleteVisitView.as_view(), name="complete-visit"),
-    path("invoices/<int:visit_id>/", InvoiceAPIView.as_view(), name="invoice"),
     path(
         "invoices/<int:invoice_id>/pay/",
         PayInvoiceAPIView.as_view(),
@@ -125,4 +127,24 @@ urlpatterns = [
     ),
     path("invoices/", InvoiceListView.as_view(), name="invoice_list"),
     path("invoices/<int:pk>/", InvoiceDetailView.as_view(), name="invoice_detail"),
+    path(
+        "generate-insurance-consultation-invoice/",
+        GenerateInsuranceConsultationInvoiceView.as_view(),
+        name="generate-insurance-consultation-invoice",
+    ),
+    path(
+        "generate-insurance-test-invoice/",
+        GenerateInsuranceTestInvoiceView.as_view(),
+        name="generate-insurance-test-invoice",
+    ),
+    path(
+        "generate-insurance-prescription-invoice/",
+        GenerateInsurancePrescriptionInvoiceView.as_view(),
+        name="generate-insurance-prescription-invoice",
+    ),
+    path(
+        "submit-to-insurance/",
+        SubmitToInsuranceView.as_view(),
+        name="submit-to-insurance",
+    ),
 ]
