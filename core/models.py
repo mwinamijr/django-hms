@@ -159,15 +159,25 @@ class TestResult(models.Model):
 
 
 class Prescription(models.Model):
-    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
-    doctor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    visit = models.ForeignKey(
+        Visit, on_delete=models.CASCADE, related_name="prescriptions"
     )
-    medicines = models.TextField()  # e.g., "Paracetamol 500mg x3, Ibuprofen 400mg x2"
-    created_at = models.DateTimeField(auto_now_add=True)
+    medicine_name = models.CharField(max_length=255)
+    dosage = models.CharField(max_length=100)  # e.g., "1 tablet twice a day"
+    quantity = models.IntegerField()  # e.g., 10 tablets
+    frequency = models.CharField(max_length=100)  # e.g., "After meals"
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(
+        max_length=20,
+        choices=[("pending", "Pending"), ("dispensed", "Dispensed")],
+        default="pending",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )  # Track when prescription is created
 
     def __str__(self):
-        return f"Prescription for {self.visit.patient}"
+        return f"{self.medicine_name} for {self.visit.patient} - {self.dosage} ({self.quantity} pcs)"
 
 
 class Invoice(models.Model):

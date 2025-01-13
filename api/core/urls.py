@@ -18,6 +18,9 @@ from core.views import (
     RecordTestResultView,
     PrescriptionListView,
     PrescriptionDetailView,
+    DispenseMedicinesView,
+    AddPrescriptionView,
+    GenerateMedicinePaymentView,
     InvoiceListView,
     InvoiceDetailView,
     VisitListView,
@@ -91,6 +94,20 @@ urlpatterns = [
         "prescriptions/<int:visit_id>/",
         PrescriptionAPIView.as_view(),
         name="prescriptions",
+    ),
+    # Dispense Medicines URL
+    path(
+        "dispense-medicines/",
+        DispenseMedicinesView.as_view(),
+        name="dispense-medicines",
+    ),
+    # Add Prescription URL
+    path("add-prescription/", AddPrescriptionView.as_view(), name="add-prescription"),
+    # Generate Payment for Medicines URL
+    path(
+        "generate-medicine-payment/",
+        GenerateMedicinePaymentView.as_view(),
+        name="generate-medicine-payment",
     ),
     # Invoices
     path(

@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from rest_framework.views import APIView
@@ -23,6 +24,10 @@ from .serializers import (
     PatientSerializer,
     InvoiceSerializer,
 )
+
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class PatientListView(APIView):
@@ -642,6 +647,207 @@ class PrescriptionDetailView(APIView):
         prescription = self.get_object(pk)
         serializer = PrescriptionSerializer(prescription)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AddPrescriptionView(APIView):
+    def post(self, request):
+        """
+        Add prescriptions for a patient during a visit.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            prescriptions = request.data.get("prescriptions")  # List of prescriptions
+
+            # Check for missing fields
+            if not (visit_id and prescriptions):
+                return Response(
+                    {"detail": "Missing required fields."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit
+            try:
+                visit = Visit.objects.get(id=visit_id)
+            except Visit.DoesNotExist:
+                return Response(
+                    {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Start a transaction for atomic operation
+            with transaction.atomic():
+                for prescription_data in prescriptions:
+                    # Validate each prescription entry
+                    if not all(
+                        key in prescription_data
+                        for key in [
+                            "medicine_name",
+                            "dosage",
+                            "quantity",
+                            "frequency",
+                            "price",
+                        ]
+                    ):
+                        return Response(
+                            {"detail": "Missing required fields in prescription."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # Create each prescription
+                    Prescription.objects.create(
+                        visit=visit,
+                        medicine_name=prescription_data["medicine_name"],
+                        dosage=prescription_data["dosage"],
+                        quantity=prescription_data["quantity"],
+                        frequency=prescription_data["frequency"],
+                        price=prescription_data["price"],
+                    )
+
+            return Response(
+                {"detail": "Prescriptions added successfully."},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            # Optionally log the exception
+            print(f"Error: {str(e)}")  # Replace with a proper logging mechanism
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class GenerateMedicinePaymentView(APIView):
+    def post(self, request):
+        """
+        Generate a payment for prescribed medicines.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            visit = Visit.objects.get(id=visit_id)
+
+            # Fetch prescriptions for the visit
+            prescriptions = Prescription.objects.filter(visit=visit)
+            if not prescriptions.exists():
+                return Response(
+                    {"detail": "No prescriptions to generate payment."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            total_price = sum(prescription.price for prescription in prescriptions)
+
+            # Create the payment record
+            payment = Payment.objects.create(
+                visit=visit,
+                amount=total_price,
+                status="pending",  # Set status as 'pending' for now
+            )
+
+            # Create payment items for each prescription
+            for prescription in prescriptions:
+                PaymentItem.objects.create(
+                    payment=payment,
+                    description=f"Medicine: {prescription.medicine_name}",
+                    type="prescription",
+                    price=prescription.price,
+                )
+
+            return Response(
+                {
+                    "detail": "Payment generated successfully for prescribed medicines.",
+                    "total_amount": total_price,
+                    "payment_id": payment.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Visit.DoesNotExist:
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DispenseMedicinesView(APIView):
+    def post(self, request):
+        """
+        Mark medicines as dispensed after payment, allowing re-dispensing if needed.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            visit = Visit.objects.get(id=visit_id)
+
+            # Fetch all prescriptions for the visit that are either pending or already dispensed
+            prescriptions = Prescription.objects.filter(visit=visit)
+            if not prescriptions.exists():
+                return Response(
+                    {"detail": "No prescriptions found."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Begin a transaction to ensure atomicity
+            with transaction.atomic():
+                medicines_dispensed = []
+                medicines_already_dispensed = []
+
+                for prescription in prescriptions:
+                    if prescription.status == "pending":
+                        # Mark as dispensed
+                        prescription.status = "dispensed"
+                        prescription.save()
+                        medicines_dispensed.append(prescription.medicine_name)
+                    elif prescription.status == "dispensed":
+                        # If already dispensed, keep track for logging or error handling
+                        medicines_already_dispensed.append(prescription.medicine_name)
+
+                # Log the results of dispensing
+                if medicines_dispensed:
+                    logger.info(
+                        f"Medicines dispensed for visit {visit_id}: {', '.join(medicines_dispensed)}"
+                    )
+                if medicines_already_dispensed:
+                    logger.info(
+                        f"Medicines already dispensed for visit {visit_id}: {', '.join(medicines_already_dispensed)}"
+                    )
+
+                # Prepare response based on the dispensing outcome
+                if medicines_dispensed and medicines_already_dispensed:
+                    return Response(
+                        {
+                            "detail": "Medicines dispensed successfully, some were already dispensed.",
+                            "dispensed_medicines": medicines_dispensed,
+                            "already_dispensed_medicines": medicines_already_dispensed,
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+                elif medicines_dispensed:
+                    return Response(
+                        {
+                            "detail": "Medicines dispensed successfully.",
+                            "dispensed_medicines": medicines_dispensed,
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+                else:
+                    return Response(
+                        {
+                            "detail": "All medicines were already dispensed.",
+                            "already_dispensed_medicines": medicines_already_dispensed,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+        except Visit.DoesNotExist:
+            logger.error(f"Visit with ID {visit_id} not found.")
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error dispensing medicines for visit {visit_id}: {str(e)}")
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class CompletePaymentView(APIView):
