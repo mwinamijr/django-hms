@@ -27,8 +27,15 @@ class Patient(models.Model):
 class Visit(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    assigned_doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
     assigned_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_visits",
     )
     visit_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
@@ -38,7 +45,7 @@ class Visit(models.Model):
 
 
 class Payment(models.Model):
-    visit = models.OneToOneField(Visit, on_delete=models.CASCADE)
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(
         max_length=20,
@@ -52,6 +59,24 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"Payment for {self.visit} - {self.status}"
+
+
+class PaymentItem(models.Model):
+    PAYMENT_TYPE_CHOICES = [
+        ("consultation", "Consultation"),
+        ("test", "Test"),
+        ("prescription", "Prescription"),
+    ]
+
+    payment = models.ForeignKey(
+        "Payment", on_delete=models.CASCADE, related_name="items"
+    )
+    description = models.CharField(max_length=255)  # e.g., "Ultrasound", "Paracetamol"
+    type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.type.capitalize()} - {self.description} (${self.price})"
 
 
 class Vitals(models.Model):
@@ -108,10 +133,31 @@ class Prescription(models.Model):
 
 
 class Invoice(models.Model):
+    invoice_number = models.CharField(max_length=50, unique=True)
     visit = models.OneToOneField("Visit", on_delete=models.CASCADE)
+    payments = models.ManyToManyField(Payment, related_name="invoices")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     is_paid = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    due_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return f"Invoice for {self.visit.patient}"
+
+
+class InvoiceItem(models.Model):
+    INVOICE_TYPE_CHOICES = [
+        ("consultation", "Consultation"),
+        ("test", "Test"),
+        ("prescription", "Prescription"),
+    ]
+
+    invoice = models.ForeignKey(
+        "Invoice", on_delete=models.CASCADE, related_name="items"
+    )
+    description = models.CharField(max_length=255)  # e.g., "Ultrasound", "Paracetamol"
+    type = models.CharField(max_length=20, choices=INVOICE_TYPE_CHOICES)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.type.capitalize()} - {self.description} (${self.price})"

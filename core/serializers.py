@@ -3,11 +3,13 @@ from .models import (
     Patient,
     Visit,
     Payment,
+    PaymentItem,
     Vitals,
     MedicalHistory,
     Test,
     Prescription,
     Invoice,
+    InvoiceItem,
 )
 
 
@@ -26,6 +28,12 @@ class VisitSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
+        fields = "__all__"
+
+
+class PaymentItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentItem
         fields = "__all__"
 
 
@@ -56,4 +64,10 @@ class PrescriptionSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
+        fields = "__all__"
+
+
+class InvoiceItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvoiceItem
         fields = "__all__"
