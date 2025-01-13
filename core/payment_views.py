@@ -49,6 +49,19 @@ class ConsultationPaymentView(APIView):
                     {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
                 )
 
+            # Check if the insured details provided match the patient's details
+            if (
+                visit.patient.payment_method != "insurance"
+                or visit.patient.insurance_provider != insurance_provider
+                or visit.patient.insurance_number != insurance_policy_number
+            ):
+                return Response(
+                    {
+                        "detail": "insurance_provider or insurance_number provided does not match with the patient details."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             if is_insured:
                 # Handle insured patient logic
                 if not all([insurance_provider, insurance_policy_number]):
@@ -65,8 +78,8 @@ class ConsultationPaymentView(APIView):
                     defaults={
                         "total_amount": consultation_fee,
                         "is_insurance": True,
-                        "insurance_provider": insurance_provider,
-                        "insurance_policy_number": insurance_policy_number,
+                        "insurance_provider": visit.patient.insurance_provider,
+                        "insurance_policy_number": visit.patient.insurance_policy_number,
                     },
                 )
 

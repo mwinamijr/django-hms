@@ -174,54 +174,61 @@ class VisitDetailView(APIView):
 class AssignDoctorView(APIView):
     def post(self, request):
         """
-        Assign a doctor to the patient's visit and create a consultation fee payment.
+        Assign a doctor to the patient's visit, check consultation payment for cash patients.
         """
         try:
             visit_id = request.data.get("visit_id")
             doctor_id = request.data.get("doctor_id")
-            consultation_fee = request.data.get("consultation_fee")
+            is_insured = request.data.get(
+                "is_insured", False
+            )  # Indicates whether the patient is insured
 
-            if not (visit_id and doctor_id and consultation_fee):
+            if not (visit_id and doctor_id):
                 return Response(
-                    {"detail": "Missing required fields."},
+                    {"detail": "Missing required fields (visit_id, doctor_id)."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             with transaction.atomic():
                 # Fetch the visit and doctor
-                visit = Visit.objects.get(id=visit_id)
-                doctor = User.objects.get(id=doctor_id, role="doctor")
+                try:
+                    visit = Visit.objects.get(id=visit_id)
+                    doctor = User.objects.get(id=doctor_id, role="doctor")
+                except Visit.DoesNotExist:
+                    return Response(
+                        {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                    )
+                except User.DoesNotExist:
+                    return Response(
+                        {"detail": "Doctor not found."},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                if not is_insured:
+                    # For cash patients: Check if consultation fee has been paid
+                    existing_payment = Payment.objects.filter(
+                        visit=visit, status="completed"
+                    ).first()
+
+                    if not existing_payment:
+                        return Response(
+                            {"detail": "Consultation fee not paid yet."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                 # Assign the doctor to the visit
                 visit.assigned_doctor = doctor
                 visit.save()
 
-                # Create a Payment record if not exists
-                payment, created = Payment.objects.get_or_create(visit=visit)
-
-                # Add a PaymentItem for the consultation fee
-                PaymentItem.objects.create(
-                    payment=payment,
-                    description="Consultation Fee",
-                    type="consultation",
-                    price=consultation_fee,
-                )
-
                 return Response(
-                    {"detail": "Doctor assigned and consultation fee recorded."},
+                    {"detail": "Doctor assigned successfully."},
                     status=status.HTTP_200_OK,
                 )
-        except Visit.DoesNotExist:
-            return Response(
-                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-        except User.DoesNotExist:
-            return Response(
-                {"detail": "Doctor not found."}, status=status.HTTP_404_NOT_FOUND
-            )
+
         except Exception as e:
             return Response(
-                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
@@ -724,7 +731,7 @@ class DispenseMedicinesView(APIView):
 class CompleteVisitView(APIView):
     def post(self, request):
         """
-        Mark the visit as completed, after ensuring all invoices are paid.
+        Mark the visit as completed, after ensuring all invoices are paid for cash patients.
         """
         try:
             visit_id = request.data.get("visit_id")
@@ -736,15 +743,30 @@ class CompleteVisitView(APIView):
                 )
 
             # Fetch the visit, handle the case where the visit does not exist
-            visit = Visit.objects.get(id=visit_id)
-
-            # Check if all invoices are paid before completing the visit
-            unpaid_invoices = Invoice.objects.filter(visit=visit, is_paid=False)
-            if unpaid_invoices.exists():
+            try:
+                visit = Visit.objects.get(id=visit_id)
+            except Visit.DoesNotExist:
+                logger.error(f"Visit with ID {visit_id} not found.")
                 return Response(
-                    {"detail": "Outstanding invoices need to be paid."},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
                 )
+
+            # Check if the patient is insured or not
+            is_insured = (
+                visit.patient.payment_method == "insurance"
+            )  # Assuming the 'Visit' model has the 'is_insured' field
+
+            if not is_insured:
+                # Check if all payments are paid for cash patients
+                unpaid_payments = Payment.objects.filter(visit=visit, status="pending")
+                if unpaid_payments.exists():
+                    logger.warning(f"Visit {visit_id} has pending cash payments.")
+                    return Response(
+                        {
+                            "detail": "Outstanding payments need to be completed for cash patients."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             # Begin a transaction to ensure atomicity
             with transaction.atomic():
@@ -759,14 +781,9 @@ class CompleteVisitView(APIView):
                 {"detail": "Visit marked as completed."}, status=status.HTTP_200_OK
             )
 
-        except Visit.DoesNotExist:
-            logger.error(f"Visit with ID {visit_id} not found.")
-            return Response(
-                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
         except Exception as e:
             logger.error(f"Error completing visit {visit_id}: {str(e)}")
             return Response(
-                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
