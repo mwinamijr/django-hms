@@ -1,6 +1,6 @@
 from django.urls import path
 from core.views import (
-    AssignDoctorAPIView,
+    AssignDoctorView,
     MedicalHistoryAPIView,
     MedicalHistoryListView,
     MedicalHistoryDetailView,
@@ -17,17 +17,24 @@ from core.views import (
     PrescriptionDetailView,
     InvoiceListView,
     InvoiceDetailView,
+    VisitListView,
+    VisitDetailView,
+    CompletePaymentView,
 )
+
 
 urlpatterns = [
     # Patient list and create view
     path("patients/", PatientListView.as_view(), name="patient_list"),
     # Patient detail view for retrieve, update, and delete
     path("patients/<int:pk>/", PatientDetailView.as_view(), name="patient_detail"),
+    # URL to list all visits or create a new visit
+    path("visits/", VisitListView.as_view(), name="visit-list"),
+    path("visit/<int:visit_id>/", VisitDetailView.as_view(), name="visit-detail"),
     # Visits and Assign Doctor
     path(
         "visits/<int:visit_id>/assign-doctor/",
-        AssignDoctorAPIView.as_view(),
+        AssignDoctorView.as_view(),
         name="assign_doctor",
     ),
     # Medical History
@@ -68,6 +75,11 @@ urlpatterns = [
         name="prescriptions",
     ),
     # Invoices
+    path(
+        "payment/complete-payment",
+        CompletePaymentView.as_view(),
+        name="complete-payment",
+    ),
     path("invoices/<int:visit_id>/", InvoiceAPIView.as_view(), name="invoice"),
     path(
         "invoices/<int:invoice_id>/pay/",

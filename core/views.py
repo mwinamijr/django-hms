@@ -1,9 +1,20 @@
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from .models import Visit, MedicalHistory, Test, Patient, Prescription, Invoice
+from .models import (
+    Visit,
+    MedicalHistory,
+    Test,
+    Patient,
+    Prescription,
+    Invoice,
+    Payment,
+    PaymentItem,
+)
+from users.models import CustomUser as User
 from .serializers import (
     VisitSerializer,
     MedicalHistorySerializer,
@@ -92,22 +103,121 @@ class PatientDetailView(APIView):
         )
 
 
-# --- Visit Management ---
-class AssignDoctorAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+class VisitListView(APIView):
+    """
+    View to list all visits or create a new visit.
+    """
 
-    def post(self, request, visit_id):
-        try:
-            visit = Visit.objects.get(pk=visit_id)
-            doctor_id = request.data.get("doctor_id")
-            visit.doctor_id = doctor_id
-            visit.save()
+    def get(self, request):
+        visits = Visit.objects.all()  # Get all visits
+        serializer = VisitSerializer(visits, many=True)  # Serialize the visits
+        return Response(serializer.data)  # Return the data in JSON format
+
+    def post(self, request):
+        serializer = VisitSerializer(data=request.data)  # Deserialize the incoming data
+        if serializer.is_valid():
+            serializer.save()  # Save the new visit
             return Response(
-                {"status": "Doctor assigned successfully"}, status=status.HTTP_200_OK
-            )
+                serializer.data, status=status.HTTP_201_CREATED
+            )  # Return the serialized data with a 201 status
+        return Response(
+            serializer.errors, status=status.HTTP_400_BAD_REQUEST
+        )  # Return validation errors if any
+
+
+class VisitDetailView(APIView):
+    """
+    View to retrieve, update, or delete a specific visit.
+    """
+
+    def get_object(self, visit_id):
+        try:
+            return Visit.objects.get(id=visit_id)
+        except Visit.DoesNotExist:
+            return None
+
+    def get(self, request, visit_id):
+        visit = self.get_object(visit_id)  # Get the specific visit
+        if visit is not None:
+            serializer = VisitSerializer(visit)
+            return Response(serializer.data)  # Return visit data
+        return Response(
+            {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
+        )  # Handle if visit doesn't exist
+
+    def put(self, request, visit_id):
+        visit = self.get_object(visit_id)
+        if visit is not None:
+            serializer = VisitSerializer(
+                visit, data=request.data, partial=False
+            )  # Deserialize and validate the data
+            if serializer.is_valid():
+                serializer.save()  # Save the updated visit
+                return Response(serializer.data)  # Return the updated visit data
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    def delete(self, request, visit_id):
+        visit = self.get_object(visit_id)
+        if visit is not None:
+            visit.delete()  # Delete the visit
+            return Response(
+                status=status.HTTP_204_NO_CONTENT
+            )  # Return 204 No Content status
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AssignDoctorView(APIView):
+    def post(self, request):
+        """
+        Assign a doctor to the patient's visit and create a consultation fee payment.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            doctor_id = request.data.get("doctor_id")
+            consultation_fee = request.data.get("consultation_fee")
+
+            if not (visit_id and doctor_id and consultation_fee):
+                return Response(
+                    {"detail": "Missing required fields."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                # Fetch the visit and doctor
+                visit = Visit.objects.get(id=visit_id)
+                doctor = User.objects.get(id=doctor_id, role="doctor")
+
+                # Assign the doctor to the visit
+                visit.assigned_doctor = doctor
+                visit.save()
+
+                # Create a Payment record if not exists
+                payment, created = Payment.objects.get_or_create(visit=visit)
+
+                # Add a PaymentItem for the consultation fee
+                PaymentItem.objects.create(
+                    payment=payment,
+                    description="Consultation Fee",
+                    type="consultation",
+                    price=consultation_fee,
+                )
+
+                return Response(
+                    {"detail": "Doctor assigned and consultation fee recorded."},
+                    status=status.HTTP_200_OK,
+                )
         except Visit.DoesNotExist:
             return Response(
-                {"error": "Visit not found"}, status=status.HTTP_404_NOT_FOUND
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Doctor not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -273,6 +383,49 @@ class PrescriptionDetailView(APIView):
         prescription = self.get_object(pk)
         serializer = PrescriptionSerializer(prescription)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class CompletePaymentView(APIView):
+    def post(self, request):
+        """
+        Mark a payment as completed.
+        """
+        try:
+            payment_id = request.data.get("payment_id")
+
+            if not payment_id:
+                return Response(
+                    {"detail": "Payment ID is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the payment
+            try:
+                payment = Payment.objects.get(id=payment_id)
+            except Payment.DoesNotExist:
+                return Response(
+                    {"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Check if the payment is already completed
+            if payment.status == "completed":
+                return Response(
+                    {"detail": "Payment is already marked as completed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Update payment status
+            payment.status = "completed"
+            payment.save()
+
+            return Response(
+                {"detail": "Payment completed successfully."}, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 # --- Invoice Management ---
