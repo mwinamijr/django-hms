@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
-from django.contrib.auth.models import Group
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
@@ -11,6 +10,9 @@ from .managers import CustomUserManager
 class Department(models.Model):
     name = models.CharField(max_length=100)
     short_name = models.CharField(max_length=10)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return self.name
