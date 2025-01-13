@@ -323,6 +323,209 @@ class MedicalHistoryDetailView(APIView):
 
 
 # --- Test Management ---
+
+
+class AssignTestsView(APIView):
+    def post(self, request):
+        """
+        Assign tests to a patient during a visit.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+            tests = request.data.get("tests")  # List of tests with type and price
+
+            # Check if the visit_id and tests are provided
+            if not visit_id or not tests:
+                return Response(
+                    {"detail": "Missing required fields: visit_id and tests."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit, raise 404 if not found
+            try:
+                visit = Visit.objects.get(id=visit_id)
+            except Visit.DoesNotExist:
+                return Response(
+                    {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Iterate through the tests and validate each one
+            for test_data in tests:
+                # Ensure each test has the required fields
+                if not all(key in test_data for key in ["name", "type", "price"]):
+                    return Response(
+                        {
+                            "detail": "Each test must include 'name', 'type', and 'price'."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Validate the 'type' field with possible choices
+                if test_data["type"] not in ["laboratory", "radiology"]:
+                    return Response(
+                        {
+                            "detail": "Invalid test type. Must be 'laboratory' or 'radiology'."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Validate the 'price' field to be a positive number
+                try:
+                    price = float(test_data["price"])
+                    if price <= 0:
+                        raise ValueError("Price must be greater than zero.")
+                except ValueError:
+                    return Response(
+                        {"detail": "Invalid price. It must be a positive number."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Create the test
+                Test.objects.create(
+                    visit=visit,
+                    name=test_data["name"],
+                    type=test_data["type"],
+                    price=test_data["price"],
+                )
+
+            return Response(
+                {"detail": "Tests assigned successfully."}, status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"detail": f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class GenerateTestPaymentView(APIView):
+    def post(self, request):
+        """
+        Generate a payment for assigned tests.
+        """
+        try:
+            # Fetch the visit_id from the request
+            visit_id = request.data.get("visit_id")
+            if not visit_id:
+                return Response(
+                    {"detail": "Visit ID is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit, raise 404 if not found
+            try:
+                visit = Visit.objects.get(id=visit_id)
+            except Visit.DoesNotExist:
+                return Response(
+                    {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Fetch pending tests associated with the visit
+            tests = Test.objects.filter(visit=visit, status="pending")
+            if not tests.exists():
+                return Response(
+                    {"detail": "No pending tests to generate payment for."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Calculate the total price for pending tests
+            total_price = sum(test.price for test in tests)
+
+            # Create the Payment instance
+            payment = Payment.objects.create(
+                visit=visit,
+                amount=total_price,
+                status="pending",  # The payment is initially pending
+            )
+
+            # Create PaymentItems for each pending test
+            for test in tests:
+                PaymentItem.objects.create(
+                    payment=payment,
+                    description=test.name,  # Using the name of the test as the description
+                    type="test",  # Type of the payment item is "test"
+                    price=test.price,
+                )
+
+            # Optionally, add consultation or prescription payment items (if needed)
+            # Example: Add a consultation fee (if applicable)
+            # PaymentItem.objects.create(
+            #     payment=payment,
+            #     description="Consultation Fee",
+            #     type="consultation",
+            #     price=50.00,  # Example price
+            # )
+
+            return Response(
+                {
+                    "detail": "Payment generated successfully.",
+                    "total_amount": total_price,
+                    "payment_id": payment.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            # General exception handling for unforeseen errors
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class RecordTestResultView(APIView):
+    def post(self, request):
+        """
+        Record results for a completed test.
+        """
+        try:
+            test_id = request.data.get("test_id")
+            result_details = request.data.get("result_details")
+
+            if not test_id or not result_details:
+                return Response(
+                    {"detail": "Missing required fields."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the test object
+            test = Test.objects.get(id=test_id)
+
+            # Check if the test is pending
+            if test.status != "pending":
+                return Response(
+                    {"detail": "Test already completed or not in pending state."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Use a transaction to ensure atomicity for both the result creation and status update
+            with transaction.atomic():
+                # Record the test result
+                test_result = TestResult.objects.create(
+                    test=test, result_details=result_details
+                )
+
+                # Update the test status to 'completed'
+                test.status = "completed"
+                test.save()
+
+            return Response(
+                {"detail": "Test result recorded successfully."},
+                status=status.HTTP_200_OK,
+            )
+
+        except Test.DoesNotExist:
+            return Response(
+                {"detail": "Test not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            # Log the error for further analysis (optional)
+            print(f"Error: {e}")
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 class TestAPIView(APIView):
     permission_classes = [IsAuthenticated]
 

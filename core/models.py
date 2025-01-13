@@ -45,20 +45,21 @@ class Visit(models.Model):
 
 
 class Payment(models.Model):
-    visit = models.ForeignKey(Visit, on_delete=models.CASCADE)
+    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(
         max_length=20,
-        choices=[
-            ("pending", "Pending"),
-            ("completed", "Completed"),
-        ],
+        choices=[("pending", "Pending"), ("completed", "Completed")],
         default="pending",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Payment for {self.visit} - {self.status}"
+
+    class Meta:
+        verbose_name = "Payment"
+        verbose_name_plural = "Payments"
 
 
 class PaymentItem(models.Model):
@@ -77,6 +78,10 @@ class PaymentItem(models.Model):
 
     def __str__(self):
         return f"{self.type.capitalize()} - {self.description} (${self.price})"
+
+    class Meta:
+        verbose_name = "Payment Item"
+        verbose_name_plural = "Payment Items"
 
 
 class Vitals(models.Model):
@@ -117,16 +122,40 @@ class MedicalHistory(models.Model):
 
 
 class Test(models.Model):
-    visit = models.ForeignKey("Visit", on_delete=models.CASCADE)
-    test_type = models.CharField(max_length=100)
-    result = models.TextField(null=True, blank=True)
-    conducted_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    VISIT_TYPES = [
+        ("laboratory", "Laboratory"),
+        ("radiology", "Radiology"),
+    ]
+
+    visit = models.ForeignKey("Visit", on_delete=models.CASCADE, related_name="tests")
+    name = models.CharField(max_length=255)  # e.g., "Blood Test", "X-ray"
+    type = models.CharField(max_length=50, choices=VISIT_TYPES)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(
+        max_length=20,
+        choices=[("pending", "Pending"), ("completed", "Completed")],
+        default="pending",
     )
-    is_completed = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.test_type} for {self.visit}"
+        return f"{self.name} ({self.type}) - {self.status}"
+
+    class Meta:
+        verbose_name = "Test"
+        verbose_name_plural = "Tests"
+
+
+class TestResult(models.Model):
+    test = models.OneToOneField("Test", on_delete=models.CASCADE, related_name="result")
+    result_details = models.TextField()
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Result for {self.test.name}"
+
+    class Meta:
+        verbose_name = "Test Result"
+        verbose_name_plural = "Test Results"
 
 
 class Prescription(models.Model):

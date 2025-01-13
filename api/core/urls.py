@@ -13,6 +13,9 @@ from core.views import (
     PatientDetailView,
     TestListView,
     TestDetailView,
+    AssignTestsView,
+    GenerateTestPaymentView,
+    RecordTestResultView,
     PrescriptionListView,
     PrescriptionDetailView,
     InvoiceListView,
@@ -63,6 +66,20 @@ urlpatterns = [
     ),
     path("tests/", TestListView.as_view(), name="test_list"),
     path("tests/<int:pk>/", TestDetailView.as_view(), name="test_detail"),
+    # URL for assigning tests to a patient during a visit
+    path("tests/assign-tests/", AssignTestsView.as_view(), name="assign_tests"),
+    # URL for generating a payment for assigned tests
+    path(
+        "tests/generate-test-payment/",
+        GenerateTestPaymentView.as_view(),
+        name="generate_test_payment",
+    ),
+    # URL for recording test results
+    path(
+        "tests/record-test-result/",
+        RecordTestResultView.as_view(),
+        name="record_test_result",
+    ),
     # Prescriptions
     path("prescriptions/", PrescriptionListView.as_view(), name="prescription_list"),
     path(
