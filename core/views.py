@@ -856,40 +856,100 @@ class CompletePaymentView(APIView):
         Mark a payment as completed.
         """
         try:
+            # Step 1: Validate if the payment_id is provided
             payment_id = request.data.get("payment_id")
-
             if not payment_id:
                 return Response(
                     {"detail": "Payment ID is required."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Fetch the payment
+            # Step 2: Fetch the payment and handle case where it doesn't exist
             try:
                 payment = Payment.objects.get(id=payment_id)
             except Payment.DoesNotExist:
+                logger.error(f"Payment with ID {payment_id} not found.")
                 return Response(
                     {"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND
                 )
 
-            # Check if the payment is already completed
+            # Step 3: Check if the payment is already marked as completed
             if payment.status == "completed":
                 return Response(
                     {"detail": "Payment is already marked as completed."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Update payment status
-            payment.status = "completed"
-            payment.save()
+            # Step 4: Mark payment as completed and save changes
+            with transaction.atomic():
+                payment.status = "completed"
+                payment.save()
+
+            # Log the successful completion
+            logger.info(f"Payment with ID {payment_id} marked as completed.")
 
             return Response(
                 {"detail": "Payment completed successfully."}, status=status.HTTP_200_OK
             )
+
         except Exception as e:
+            logger.error(
+                f"An error occurred while completing payment {payment_id}: {str(e)}"
+            )
             return Response(
                 {"detail": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class CompleteVisitView(APIView):
+    def post(self, request):
+        """
+        Mark the visit as completed, after ensuring all invoices are paid.
+        """
+        try:
+            visit_id = request.data.get("visit_id")
+
+            if not visit_id:
+                return Response(
+                    {"detail": "Visit ID is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Fetch the visit, handle the case where the visit does not exist
+            visit = Visit.objects.get(id=visit_id)
+
+            # Check if all invoices are paid before completing the visit
+            unpaid_invoices = Invoice.objects.filter(visit=visit, is_paid=False)
+            if unpaid_invoices.exists():
+                return Response(
+                    {"detail": "Outstanding invoices need to be paid."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Begin a transaction to ensure atomicity
+            with transaction.atomic():
+                visit.status = "completed"
+                visit.is_active = False
+                visit.save()
+
+                # Log completion
+                logger.info(f"Visit {visit_id} marked as completed.")
+
+            return Response(
+                {"detail": "Visit marked as completed."}, status=status.HTTP_200_OK
+            )
+
+        except Visit.DoesNotExist:
+            logger.error(f"Visit with ID {visit_id} not found.")
+            return Response(
+                {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        except Exception as e:
+            logger.error(f"Error completing visit {visit_id}: {str(e)}")
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 

@@ -26,6 +26,7 @@ from core.views import (
     VisitListView,
     VisitDetailView,
     CompletePaymentView,
+    CompleteVisitView,
 )
 
 
@@ -115,6 +116,7 @@ urlpatterns = [
         CompletePaymentView.as_view(),
         name="complete-payment",
     ),
+    path("complete-visit/", CompleteVisitView.as_view(), name="complete-visit"),
     path("invoices/<int:visit_id>/", InvoiceAPIView.as_view(), name="invoice"),
     path(
         "invoices/<int:invoice_id>/pay/",

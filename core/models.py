@@ -37,6 +37,11 @@ class Visit(models.Model):
         blank=True,
         related_name="assigned_visits",
     )
+    status = models.CharField(
+        max_length=20,
+        choices=[("pending", "Pending"), ("completed", "Completed")],
+        default="pending",
+    )
     visit_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
