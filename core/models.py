@@ -193,8 +193,6 @@ class Invoice(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     is_paid = models.BooleanField(default=False)
     is_insurance = models.BooleanField(default=False)
-    insurance_provider = models.CharField(max_length=255, null=True, blank=True)
-    insurance_policy_number = models.CharField(max_length=100, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -202,7 +200,10 @@ class Invoice(models.Model):
 
     def clean(self):
         if self.is_insurance:
-            if not self.insurance_provider or not self.insurance_policy_number:
+            if (
+                not self.visit.patient.insurance_provider
+                or not self.visit.patient.insurance_policy_number
+            ):
                 raise ValidationError(
                     "Insurance provider and policy number must be provided if insurance is selected."
                 )

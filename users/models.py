@@ -29,6 +29,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         max_length=100, blank=True, null=True, verbose_name="last name"
     )
     email = models.EmailField(_("email address"), unique=True)
+    phone = models.CharField(
+        max_length=15,
+        unique=True,
+        blank=True,
+        null=True,
+    )
+    qualification = models.CharField(
+        max_length=100, blank=True, null=True, verbose_name="qualification"
+    )
     date_joined = models.DateTimeField(default=timezone.now)
 
     department = models.ForeignKey(
@@ -38,6 +47,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         max_length=50,
         choices=[
             ("doctor", "Doctor"),
+            ("dentist", "Dentist"),
             ("nurse", "Nurse"),
             ("receptionist", "Receptionist"),
             ("cashier", "Cashier"),

@@ -31,9 +31,9 @@ class ConsultationPaymentView(APIView):
             # Extract data from the request
             visit_id = request.data.get("visit_id")
             consultation_fee = Decimal(request.data.get("consultation_fee", "0.00"))
-            is_insured = request.data.get("is_insured", False)
-            insurance_provider = request.data.get("insurance_provider")
-            insurance_policy_number = request.data.get("insurance_policy_number")
+            # is_insured = request.data.get("is_insured", False)
+            # insurance_provider = request.data.get("insurance_provider")
+            # insurance_policy_number = request.data.get("insurance_policy_number")
 
             if not visit_id or consultation_fee <= 0:
                 return Response(
@@ -48,9 +48,10 @@ class ConsultationPaymentView(APIView):
                 return Response(
                     {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
                 )
+            is_insured = visit.patient.payment_method == "insurance"
 
             # Check if the insured details provided match the patient's details
-            if (
+            """if (
                 visit.patient.payment_method != "insurance"
                 or visit.patient.insurance_provider != insurance_provider
                 or visit.patient.insurance_number != insurance_policy_number
@@ -60,17 +61,17 @@ class ConsultationPaymentView(APIView):
                         "detail": "insurance_provider or insurance_number provided does not match with the patient details."
                     },
                     status=status.HTTP_400_BAD_REQUEST,
-                )
+                )"""
 
             if is_insured:
                 # Handle insured patient logic
-                if not all([insurance_provider, insurance_policy_number]):
-                    return Response(
-                        {
-                            "detail": "Insurance provider and policy number are required for insured patients."
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                """if not all([insurance_provider, insurance_policy_number]):
+                return Response(
+                    {
+                        "detail": "Insurance provider and policy number are required for insured patients."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )"""
 
                 # Create or update the invoice for insurance
                 invoice, created = Invoice.objects.get_or_create(
@@ -78,8 +79,6 @@ class ConsultationPaymentView(APIView):
                     defaults={
                         "total_amount": consultation_fee,
                         "is_insurance": True,
-                        "insurance_provider": visit.patient.insurance_provider,
-                        "insurance_policy_number": visit.patient.insurance_policy_number,
                     },
                 )
 
@@ -161,7 +160,7 @@ class GenerateTestPaymentView(APIView):
         try:
             # Extract data from the request
             visit_id = request.data.get("visit_id")
-            is_insured = request.data.get("is_insured", False)
+            # is_insured = request.data.get("is_insured", False)
             insurance_coverage = Decimal(request.data.get("insurance_coverage", "0.00"))
 
             if not visit_id:
@@ -188,6 +187,9 @@ class GenerateTestPaymentView(APIView):
 
             # Calculate the total price for pending tests
             total_price = sum(test.price for test in tests)
+
+            # Check if the patient is insured
+            is_insured = visit.patient.payment_method == "insurance"
 
             if is_insured:
                 # Handle insured patient
@@ -293,7 +295,7 @@ class GeneratePrescriptionPaymentView(APIView):
         try:
             # Extract data from the request
             visit_id = request.data.get("visit_id")
-            is_insured = request.data.get("is_insured", False)
+            # is_insured = request.data.get("is_insured", False)
             insurance_coverage = Decimal(request.data.get("insurance_coverage", "0.00"))
 
             if not visit_id:
@@ -320,6 +322,9 @@ class GeneratePrescriptionPaymentView(APIView):
 
             # Calculate the total price for all prescriptions
             total_price = sum(prescription.price for prescription in prescriptions)
+
+            # Check if the patient has insurance
+            is_insured = visit.patient.payment_method == "insurance"
 
             if is_insured:
                 # Handle insured patient
