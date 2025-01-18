@@ -6,7 +6,6 @@ from core.views import (
     MedicalHistoryDetailView,
     TestAPIView,
     CompleteTestAPIView,
-    PrescriptionAPIView,
     PatientListView,
     PatientDetailView,
     TestListView,
@@ -77,11 +76,6 @@ urlpatterns = [
         "prescriptions/<int:pk>/",
         PrescriptionDetailView.as_view(),
         name="prescription_detail",
-    ),
-    path(
-        "prescriptions/<int:visit_id>/",
-        PrescriptionAPIView.as_view(),
-        name="prescriptions",
     ),
     # Dispense Medicines URL
     path(

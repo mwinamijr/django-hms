@@ -424,7 +424,7 @@ class CompletePaymentView(APIView):
     Mark a payment as completed. Only accessible to users with the cashier role.
     """
 
-    permission_classes = [IsCashier]
+    # permission_classes = [IsCashier]
 
     def post(self, request):
         try:
@@ -554,7 +554,7 @@ class SubmitToInsuranceView(APIView):
 
 # Invoice Views
 class InvoiceListView(APIView):
-    permission_classes = [IsCashier]
+    # permission_classes = [IsCashier]
 
     def get(self, request):
         invoices = Invoice.objects.all()
@@ -570,7 +570,7 @@ class InvoiceListView(APIView):
 
 
 class InvoiceDetailView(APIView):
-    permission_classes = [IsCashier]
+    # permission_classes = [IsCashier]
 
     def get_object(self, pk):
         return get_object_or_404(Invoice, pk=pk)

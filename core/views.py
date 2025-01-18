@@ -11,9 +11,7 @@ from .models import (
     Test,
     Patient,
     Prescription,
-    Invoice,
     Payment,
-    PaymentItem,
 )
 from users.models import CustomUser as User
 from .serializers import (
@@ -536,23 +534,6 @@ class TestDetailView(APIView):
 
 
 # --- Prescription Management ---
-class PrescriptionAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, visit_id):
-        prescriptions = Prescription.objects.filter(visit_id=visit_id)
-        serializer = PrescriptionSerializer(prescriptions, many=True)
-        return Response(serializer.data)
-
-    def post(self, request):
-        serializer = PrescriptionSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# Prescription Views
 class PrescriptionListView(APIView):
     permission_classes = [IsAuthenticated]
 
