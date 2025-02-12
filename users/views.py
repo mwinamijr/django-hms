@@ -2,11 +2,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import status
+from django.contrib.auth.hashers import make_password
 from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import Department, CustomUser as User
 from .serializers import UserSerializer, DepartmentSerializer
+
+
 
 
 class LoginView(APIView):
@@ -50,7 +53,8 @@ class LoginView(APIView):
             )
 
 
-# User List View
+
+
 class UserListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
@@ -66,14 +70,45 @@ class UserListView(APIView):
         """
         Create a new user.
         """
-        serializer = UserSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        data = request.data
+        print(data)  # Debugging step
+
+        try:
+            # Get the department instance if provided
+            department_id = data.get("department")
+            department = Department.objects.get(id=department_id) if department_id else None
+
+            user = User.objects.create(
+                first_name=data.get("first_name", ""),
+                middle_name=data.get("middle_name", ""),
+                last_name=data.get("last_name", ""),
+                email=data["email"],
+                phone=data.get("phone", ""),
+                qualification=data.get("qualification", ""),
+                gender=data.get("gender", None),
+                date_of_birth=data.get("date_of_birth", None),
+                department=department,
+                role=data["role"],
+                is_staff=data.get("is_staff", False),
+                is_active=data.get("is_active", True),
+                password=make_password(data["password"]),  # Hash password
+            )
+
+            serializer = UserSerializer(user, many=False)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Department.DoesNotExist:
+            return Response({"detail": "Invalid department ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            message = {"detail": "User with this email or phone already exists"}
+            return Response(message, status=status.HTTP_400_BAD_REQUEST)
 
 
-# User Detail View
+
+
+
+
 class UserDetailView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
@@ -96,22 +131,47 @@ class UserDetailView(APIView):
         Fully update a user record.
         """
         user = self.get_object(pk)
-        serializer = UserSerializer(user, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        data = request.data
+
+        try:
+            # Retrieve department if provided
+            department_id = data.get("department")
+            department = Department.objects.get(id=department_id) if department_id else None
+
+            # Update user fields
+            user.first_name = data.get("first_name", user.first_name)
+            user.middle_name = data.get("middle_name", user.middle_name)
+            user.last_name = data.get("last_name", user.last_name)
+            user.email = data.get("email", user.email)
+            user.phone = data.get("phone", user.phone)
+            user.qualification = data.get("qualification", user.qualification)
+            user.gender = data.get("gender", user.gender)
+            user.date_of_birth = data.get("date_of_birth", user.date_of_birth)
+            user.department = department
+            user.role = data.get("role", user.role)
+            user.is_staff = data.get("is_staff", user.is_staff)
+            user.is_active = data.get("is_active", user.is_active)
+
+            # Handle password update
+            if data.get("password"):
+                user.password = make_password(data["password"])
+
+            user.save()
+
+            serializer = UserSerializer(user, many=False)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Department.DoesNotExist:
+            return Response({"detail": "Invalid department ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
         """
         Partially update a user record.
         """
-        user = self.get_object(pk)
-        serializer = UserSerializer(user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return self.put(request, pk)  # Since put already handles partial updates safely
 
     def delete(self, request, pk):
         """
@@ -119,9 +179,8 @@ class UserDetailView(APIView):
         """
         user = self.get_object(pk)
         user.delete()
-        return Response(
-            {"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT
-        )
+        return Response({"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+
 
 
 # Department List View

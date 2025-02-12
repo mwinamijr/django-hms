@@ -1,50 +1,40 @@
 from rest_framework import serializers
-from .models import CustomUser, Department
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
-
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = [
-            "id",
-            "email",
-            "first_name",
-            "last_name",
-            "role",
-            "department",
-            "last_name",
-            "is_staff",
-            "is_active",
-            "date_joined",
-        ]
-        extra_kwargs = {
-            "password": {"write_only": True},
-        }
-
-    def create(self, validated_data):
-        """
-        Overriding the create method to handle password hashing.
-        """
-        user = User.objects.create_user(**validated_data)
-        return user
-
-    def update(self, instance, validated_data):
-        """
-        Overriding the update method to handle password hashing.
-        """
-        password = validated_data.pop("password", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        if password:
-            instance.set_password(password)
-        instance.save()
-        return instance
-
+from .models import CustomUser as User, Department
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
-        fields = ["id", "name", "description", "created_at", "updated_at"]
+        fields = ["id", "name", "short_name", "description", "created_at", "updated_at"]
+
+class UserSerializer(serializers.ModelSerializer):
+    department_name = serializers.SerializerMethodField()
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        write_only=True  # Allow input as an ID when creating/updating
+    )
+
+    class Meta:
+        model = User
+        fields = [
+        "id",
+        "last_login",
+        "first_name",
+        "middle_name",
+        "last_name",
+        "email",
+        "phone",
+        "qualification",
+        "gender",
+        "department",
+        "department_name",
+        "date_joined",
+        "date_of_birth",
+        "role",
+        "is_staff",
+        "is_active",
+        ]
+    
+    def get_department_name(self, obj):
+        return obj.department.name if obj.department else None
+
+  

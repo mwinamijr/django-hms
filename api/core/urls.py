@@ -29,7 +29,7 @@ urlpatterns = [
     path("patients/<int:pk>/", PatientDetailView.as_view(), name="patient_detail"),
     # URL to list all visits or create a new visit
     path("visits/", VisitListView.as_view(), name="visit-list"),
-    path("visit/<int:visit_id>/", VisitDetailView.as_view(), name="visit-detail"),
+    path("visits/<int:visit_id>/", VisitDetailView.as_view(), name="visit-detail"),
     # Visits and Assign Doctor
     path(
         "visits/<int:visit_id>/assign-doctor/",

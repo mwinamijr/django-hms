@@ -38,7 +38,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     qualification = models.CharField(
         max_length=100, blank=True, null=True, verbose_name="qualification"
     )
+    gender = models.CharField(
+        max_length=10,
+        choices=[("male", "Male"), ("female", "Female")],blank=True, null=True
+    )
     date_joined = models.DateTimeField(default=timezone.now)
+    date_of_birth = models.DateField(blank=True, null=True)
 
     department = models.ForeignKey(
         Department, on_delete=models.SET_NULL, null=True, blank=True
@@ -67,6 +72,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     def __str__(self):
-        # get prefix for email and use that as username
-        # username = (self.email).
         return f"{self.email} ({self.role})"
+
+
