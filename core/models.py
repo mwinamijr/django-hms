@@ -13,6 +13,8 @@ def validate_dob(value):
 
 class InsuranceCompany(models.Model):
     name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=12, blank=True, null=True)
     description = models.TextField(
         blank=True, null=True
     )  # Optional field for additional details
@@ -30,23 +32,34 @@ class InsuranceCompany(models.Model):
         verbose_name = "Insurance Company"
         verbose_name_plural = "Insurance Companies"
 
+class ItemType(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField(
+        blank=True, null=True
+    )  # Optional field for additional details
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )  # Timestamp when the company is added
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )  # Timestamp when the company info is updated
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Item Type"
+        verbose_name_plural = "Item Types"
 
 class HospitalItem(models.Model):
-    ITEM_TYPE_CHOICES = [
-        ("test", "Test"),
-        ("medicine", "Medicine"),
-        ("service", "Service"),
-        ("other", "Other"),
-    ]
-
     name = models.CharField(
         max_length=255
     )  # Name of the item (e.g., "Blood Test", "Aspirin", "Consultation")
     description = models.TextField(
         blank=True, null=True
     )  # Optional description of the item
-    item_type = models.CharField(
-        max_length=20, choices=ITEM_TYPE_CHOICES
+    item_type = models.ForeignKey(
+       ItemType, on_delete=models.SET_NULL, blank=True, null=True
     )  # Type of the item
     price = models.DecimalField(max_digits=10, decimal_places=2)  # Price of the item
     is_active = models.BooleanField(

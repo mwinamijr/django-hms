@@ -13,7 +13,8 @@ from .models import (
     InvoiceItem,
     InsuranceCompany,
     HospitalItem,
-    Insurance,  # Don't forget to import your Insurance model
+    Insurance,
+    ItemType
 )
 
 
@@ -23,24 +24,64 @@ class InsuranceCompanySerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class HospitalItemSerializer(serializers.ModelSerializer):
-    insurance_companies = InsuranceCompanySerializer(many=True, read_only=True)
-
+class ItemTypeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = HospitalItem
+        model = ItemType
         fields = "__all__"
 
 
-class InsuranceSerializer(serializers.ModelSerializer):
-    provider = InsuranceCompanySerializer(
-        read_only=True
-    )  # Showing insurance provider details
-    patient = serializers.PrimaryKeyRelatedField(
-        queryset=Patient.objects.all(), write_only=True
-    )  # Accept patient ID
+class HospitalItemSerializer(serializers.ModelSerializer):
+    insurance_companies = InsuranceCompanySerializer(many=True, read_only=True)
+    insurance_company_ids = serializers.PrimaryKeyRelatedField(
+        queryset=InsuranceCompany.objects.all(),
+        many=True,
+        write_only=True,
+        required=False
+    )
+
+    item_type = ItemTypeSerializer(read_only=True)
+    item_type_id = serializers.PrimaryKeyRelatedField(
+        queryset=ItemType.objects.all(),
+        write_only=True,
+        required=False
+    )
 
     class Meta:
-        model = Insurance
+        model = HospitalItem
+        fields = ["id", "name", "price", "description", "is_active", "item_type", "item_type_id", "insurance_companies", "insurance_company_ids", "created_at", "updated_at"]
+
+    def update(self, instance, validated_data):
+        insurance_company_ids = validated_data.pop("insurance_company_ids", None)
+        item_type_id = validated_data.pop("item_type_id", None)
+
+        if insurance_company_ids is not None:
+            instance.insurance_companies.set(insurance_company_ids)
+
+        if item_type_id is not None:
+            instance.item_type = item_type_id
+
+        instance.save()
+        return super().update(instance, validated_data)
+
+    def create(self, validated_data):
+        insurance_company_ids = validated_data.pop("insurance_company_ids", [])
+        item_type_id = validated_data.pop("item_type_id", None)
+        hospital_item = HospitalItem.objects.create(**validated_data)
+
+        if insurance_company_ids:
+            hospital_item.insurance_companies.set(insurance_company_ids)
+
+        if item_type_id:
+            hospital_item.item_type = item_type_id
+            hospital_item.save()
+
+        return hospital_item
+
+
+class ItemTypeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ItemType
         fields = "__all__"
 
 
@@ -48,6 +89,23 @@ class PatientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Patient
         fields = "__all__"
+
+
+class InsuranceSerializer(serializers.ModelSerializer):
+    provider = InsuranceCompanySerializer(read_only=True)
+    provider_id = serializers.PrimaryKeyRelatedField(
+        queryset=InsuranceCompany.objects.all(), write_only=True, source="provider"
+    )  # Accept provider_id but assign it to the provider relationship
+
+    patient = serializers.PrimaryKeyRelatedField(
+        queryset=Patient.objects.all(), write_only=True
+    )  # Accept patient ID
+    insured_patient = PatientSerializer(source="patient", read_only=True)
+
+    class Meta:
+        model = Insurance
+        fields = ["id", "policy_number", "patient", "provider", "provider_id", "insured_patient"]
+
 
 
 class VisitSerializer(serializers.ModelSerializer):
