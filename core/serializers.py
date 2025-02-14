@@ -5,7 +5,7 @@ from .models import (
     Visit,
     Payment,
     PaymentItem,
-    Vitals,
+    Vital,
     MedicalHistory,
     Test,
     Prescription,
@@ -14,7 +14,7 @@ from .models import (
     InsuranceCompany,
     HospitalItem,
     Insurance,
-    ItemType
+    ItemType,
 )
 
 
@@ -36,19 +36,29 @@ class HospitalItemSerializer(serializers.ModelSerializer):
         queryset=InsuranceCompany.objects.all(),
         many=True,
         write_only=True,
-        required=False
+        required=False,
     )
 
     item_type = ItemTypeSerializer(read_only=True)
     item_type_id = serializers.PrimaryKeyRelatedField(
-        queryset=ItemType.objects.all(),
-        write_only=True,
-        required=False
+        queryset=ItemType.objects.all(), write_only=True, required=False
     )
 
     class Meta:
         model = HospitalItem
-        fields = ["id", "name", "price", "description", "is_active", "item_type", "item_type_id", "insurance_companies", "insurance_company_ids", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "name",
+            "price",
+            "description",
+            "is_active",
+            "item_type",
+            "item_type_id",
+            "insurance_companies",
+            "insurance_company_ids",
+            "created_at",
+            "updated_at",
+        ]
 
     def update(self, instance, validated_data):
         insurance_company_ids = validated_data.pop("insurance_company_ids", None)
@@ -104,8 +114,14 @@ class InsuranceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Insurance
-        fields = ["id", "policy_number", "patient", "provider", "provider_id", "insured_patient"]
-
+        fields = [
+            "id",
+            "policy_number",
+            "patient",
+            "provider",
+            "provider_id",
+            "insured_patient",
+        ]
 
 
 class VisitSerializer(serializers.ModelSerializer):
@@ -119,8 +135,10 @@ class VisitSerializer(serializers.ModelSerializer):
         queryset=Department.objects.all(), write_only=True  # Accept ID in input
     )
     assigned_doctor = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(role="doctor"),  # Ensure only doctors are listed
-        write_only=True,  # Accept ID in input
+        queryset=User.objects.filter(role="doctor"),
+        write_only=True,
+        required=False,  # Allow omission in input
+        allow_null=True,  # Allow null values
     )
     patient = serializers.PrimaryKeyRelatedField(
         queryset=Patient.objects.all(),
@@ -143,21 +161,9 @@ class VisitSerializer(serializers.ModelSerializer):
         return None
 
 
-class PaymentSerializer(serializers.ModelSerializer):
+class VitalSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Payment
-        fields = "__all__"
-
-
-class PaymentItemSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PaymentItem
-        fields = "__all__"
-
-
-class VitalsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Vitals
+        model = Vital
         fields = "__all__"
 
 
@@ -168,9 +174,14 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
 
 
 class TestSerializer(serializers.ModelSerializer):
+    item = HospitalItemSerializer(read_only=True)
+    item_id = serializers.PrimaryKeyRelatedField(
+        queryset=HospitalItem.objects.all(), write_only=True, source="item"
+    )
+
     class Meta:
         model = Test
-        fields = "__all__"
+        fields = ["id", "visit", "item", "item_id", "status"]
 
 
 class PrescriptionSerializer(serializers.ModelSerializer):
@@ -179,13 +190,40 @@ class PrescriptionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = "__all__"
+
+
+class PaymentItemSerializer(serializers.ModelSerializer):
+    item = HospitalItemSerializer(read_only=True)
+    item_id = serializers.PrimaryKeyRelatedField(
+        queryset=HospitalItem.objects.all(), write_only=True, source="item"
+    )
+
+    class Meta:
+        model = PaymentItem
+        fields = ["id", "payment", "item", "item_id", "status"]
+
+
 class InvoiceSerializer(serializers.ModelSerializer):
+    visit = VisitSerializer(read_only=True)
+    visit_id = serializers.PrimaryKeyRelatedField(
+        queryset=Visit.objects.all(), write_only=True, source="visit"
+    )
+
     class Meta:
         model = Invoice
         fields = "__all__"
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
+    item = HospitalItemSerializer(read_only=True)
+    item_id = serializers.PrimaryKeyRelatedField(
+        queryset=HospitalItem.objects.all(), write_only=True, source="item"
+    )
+
     class Meta:
         model = InvoiceItem
-        fields = "__all__"
+        fields = ["id", "invoice", "item", "item_id"]

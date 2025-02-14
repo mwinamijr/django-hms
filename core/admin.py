@@ -4,18 +4,22 @@ from .models import (
     Payment,
     PaymentItem,
     Visit,
-    Vitals,
+    Vital,
     MedicalHistory,
     Test,
     TestResult,
     Prescription,
     Invoice,
     InvoiceItem,
+    Insurance,
+    InsuranceCompany,
+    HospitalItem,
+    ItemType,
 )
 
 admin.site.register(Patient)
 admin.site.register(Visit)
-admin.site.register(Vitals)
+admin.site.register(Vital)
 admin.site.register(MedicalHistory)
 admin.site.register(Test)
 admin.site.register(TestResult)
@@ -24,3 +28,7 @@ admin.site.register(Invoice)
 admin.site.register(InvoiceItem)
 admin.site.register(Payment)
 admin.site.register(PaymentItem)
+admin.site.register(InsuranceCompany)
+admin.site.register(HospitalItem)
+admin.site.register(Insurance)
+admin.site.register(ItemType)

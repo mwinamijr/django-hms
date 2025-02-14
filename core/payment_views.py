@@ -14,8 +14,9 @@ from .models import (
     InvoiceItem,
     Payment,
     PaymentItem,
+    HospitalItem,
 )
-from .serializers import InvoiceSerializer
+from .serializers import InvoiceSerializer, InvoiceItemSerializer
 
 
 # Set up logging
@@ -27,17 +28,14 @@ class ConsultationPaymentView(APIView):
         """
         Handle consultation payments for both cash and insured patients.
         """
+        print(request.data)
         try:
             # Extract data from the request
             visit_id = request.data.get("visit_id")
-            consultation_fee = Decimal(request.data.get("consultation_fee", "0.00"))
-            # is_insured = request.data.get("is_insured", False)
-            # insurance_provider = request.data.get("insurance_provider")
-            # insurance_policy_number = request.data.get("insurance_policy_number")
 
-            if not visit_id or consultation_fee <= 0:
+            if not visit_id:
                 return Response(
-                    {"detail": "Visit ID and valid consultation fee are required."},
+                    {"detail": "Visit ID is required."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -48,31 +46,22 @@ class ConsultationPaymentView(APIView):
                 return Response(
                     {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
                 )
-            is_insured = visit.patient.payment_method == "insurance"
 
-            # Check if the insured details provided match the patient's details
-            """if (
-                visit.patient.payment_method != "insurance"
-                or visit.patient.insurance_provider != insurance_provider
-                or visit.patient.insurance_number != insurance_policy_number
-            ):
+            is_insured = hasattr(visit.patient, "insurance")
+
+            # Fetch the "Consultation Fee" HospitalItem
+            try:
+                consultation_item = HospitalItem.objects.get(
+                    name="Consultation Fee".lower()
+                )
+                consultation_fee = consultation_item.price
+            except HospitalItem.DoesNotExist:
                 return Response(
-                    {
-                        "detail": "insurance_provider or insurance_number provided does not match with the patient details."
-                    },
+                    {"detail": "Consultation Fee item not found."},
                     status=status.HTTP_400_BAD_REQUEST,
-                )"""
+                )
 
             if is_insured:
-                # Handle insured patient logic
-                """if not all([insurance_provider, insurance_policy_number]):
-                return Response(
-                    {
-                        "detail": "Insurance provider and policy number are required for insured patients."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )"""
-
                 # Create or update the invoice for insurance
                 invoice, created = Invoice.objects.get_or_create(
                     visit=visit,
@@ -85,13 +74,11 @@ class ConsultationPaymentView(APIView):
                 if not created:
                     # Prevent duplicate charges
                     if not InvoiceItem.objects.filter(
-                        invoice=invoice, description="Consultation Fee"
+                        invoice=invoice, item=consultation_item
                     ).exists():
                         InvoiceItem.objects.create(
                             invoice=invoice,
-                            description="Consultation Fee",
-                            amount=consultation_fee,
-                            category="consultation",
+                            item=consultation_item,
                         )
                         invoice.total_amount += consultation_fee
                         invoice.save()
@@ -131,9 +118,7 @@ class ConsultationPaymentView(APIView):
                 # Create a payment item for consultation
                 PaymentItem.objects.create(
                     payment=payment,
-                    description="Consultation Fee",
-                    type="consultation",
-                    price=consultation_fee,
+                    item=consultation_item,
                 )
 
                 return Response(
@@ -578,4 +563,32 @@ class InvoiceDetailView(APIView):
     def get(self, request, pk):
         invoice = self.get_object(pk)
         serializer = InvoiceSerializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class InvoiceItemListView(APIView):
+    # permission_classes = [IsCashier]
+
+    def get(self, request):
+        invoices = InvoiceItem.objects.all()
+        serializer = InvoiceItemSerializer(invoices, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = InvoiceItemSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InvoiceItemDetailView(APIView):
+    # permission_classes = [IsCashier]
+
+    def get_object(self, pk):
+        return get_object_or_404(InvoiceItem, pk=pk)
+
+    def get(self, request, pk):
+        invoice = self.get_object(pk)
+        serializer = InvoiceItemSerializer(invoice)
         return Response(serializer.data, status=status.HTTP_200_OK)

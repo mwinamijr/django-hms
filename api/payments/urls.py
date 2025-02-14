@@ -6,6 +6,8 @@ from core.payment_views import (
     CompletePaymentView,
     InvoiceListView,
     InvoiceDetailView,
+    InvoiceItemListView,
+    InvoiceItemDetailView,
     SubmitToInsuranceView,
 )
 
@@ -13,6 +15,12 @@ from core.payment_views import (
 urlpatterns = [
     path("invoices/", InvoiceListView.as_view(), name="invoice_list"),
     path("invoices/<int:pk>/", InvoiceDetailView.as_view(), name="invoice_detail"),
+    path("invoice-items/", InvoiceItemListView.as_view(), name="invoice-item-list"),
+    path(
+        "invoice-items/<int:pk>/",
+        InvoiceItemDetailView.as_view(),
+        name="invoice-item-detail",
+    ),
     path(
         "generate-consultation-invoice/",
         ConsultationPaymentView.as_view(),

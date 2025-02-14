@@ -32,6 +32,7 @@ class InsuranceCompany(models.Model):
         verbose_name = "Insurance Company"
         verbose_name_plural = "Insurance Companies"
 
+
 class ItemType(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(
@@ -51,6 +52,7 @@ class ItemType(models.Model):
         verbose_name = "Item Type"
         verbose_name_plural = "Item Types"
 
+
 class HospitalItem(models.Model):
     name = models.CharField(
         max_length=255
@@ -59,7 +61,7 @@ class HospitalItem(models.Model):
         blank=True, null=True
     )  # Optional description of the item
     item_type = models.ForeignKey(
-       ItemType, on_delete=models.SET_NULL, blank=True, null=True
+        ItemType, on_delete=models.SET_NULL, blank=True, null=True
     )  # Type of the item
     price = models.DecimalField(max_digits=10, decimal_places=2)  # Price of the item
     is_active = models.BooleanField(
@@ -78,7 +80,7 @@ class HospitalItem(models.Model):
     )
 
     def __str__(self):
-        return f"{self.name} - {self.get_item_type_display()}"
+        return f"{self.name} - {self.price}"
 
     class Meta:
         verbose_name = "Hospital Item"
@@ -152,7 +154,7 @@ class Insurance(models.Model):
     policy_number = models.CharField(max_length=50)
 
     def __str__(self):
-        return f"{self.provider.name} - {self.policy_number}"
+        return f"{self.patient.first_name} {self.patient.last_name} - {self.provider.name} - {self.policy_number}"
 
 
 class Visit(models.Model):
@@ -232,18 +234,12 @@ class PaymentItem(models.Model):
     This is used to track the total amount of payments in the entire visit
     """
 
-    PAYMENT_TYPE_CHOICES = [
-        ("consultation", "Consultation"),
-        ("test", "Test"),
-        ("prescription", "Prescription"),
-    ]
-
     payment = models.ForeignKey(
         "Payment", on_delete=models.CASCADE, related_name="items"
     )
-    description = models.CharField(max_length=255)  # e.g., "Ultrasound", "Paracetamol"
-    type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    item = models.ForeignKey(
+        HospitalItem, on_delete=models.SET_NULL, blank=True, null=True
+    )
     status = models.CharField(
         max_length=20,
         choices=[("pending", "Pending"), ("completed", "Completed")],
@@ -251,14 +247,14 @@ class PaymentItem(models.Model):
     )
 
     def __str__(self):
-        return f"{self.type.capitalize()} - {self.description} (${self.price})"
+        return f"{self.item.name} (${self.item.price})"
 
     class Meta:
         verbose_name = "Payment Item"
         verbose_name_plural = "Payment Items"
 
 
-class Vitals(models.Model):
+class Vital(models.Model):
     visit = models.ForeignKey(Visit, on_delete=models.CASCADE)
     weight = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     temperature = models.DecimalField(
@@ -296,15 +292,14 @@ class MedicalHistory(models.Model):
 
 
 class Test(models.Model):
-    VISIT_TYPES = [
-        ("laboratory", "Laboratory"),
-        ("radiology", "Radiology"),
-    ]
+    """
+    Represents tests conducted during a visit (e.g., Blood Test, X-ray)
+    """
 
     visit = models.ForeignKey("Visit", on_delete=models.CASCADE, related_name="tests")
-    name = models.CharField(max_length=255)  # e.g., "Blood Test", "X-ray"
-    type = models.CharField(max_length=50, choices=VISIT_TYPES)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    item = models.ForeignKey(
+        HospitalItem, on_delete=models.CASCADE, blank=True, null=True
+    )  # Use HospitalItem
     status = models.CharField(
         max_length=20,
         choices=[("pending", "Pending"), ("completed", "Completed")],
@@ -312,7 +307,7 @@ class Test(models.Model):
     )
 
     def __str__(self):
-        return f"{self.name} ({self.type}) - {self.status}"
+        return f"{self.item.name} - {self.status}"
 
     class Meta:
         verbose_name = "Test"
@@ -376,18 +371,16 @@ class Invoice(models.Model):
 
 
 class InvoiceItem(models.Model):
-    INVOICE_TYPE_CHOICES = [
-        ("consultation", "Consultation"),
-        ("test", "Test"),
-        ("prescription", "Prescription"),
-    ]
+    """
+    Represents individual items within an invoice.
+    """
 
     invoice = models.ForeignKey(
         "Invoice", on_delete=models.CASCADE, related_name="items"
     )
-    description = models.CharField(max_length=255)  # e.g., "Ultrasound", "Paracetamol"
-    type = models.CharField(max_length=20, choices=INVOICE_TYPE_CHOICES)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    item = models.ForeignKey(
+        HospitalItem, on_delete=models.SET_NULL, blank=True, null=True
+    )
 
     def __str__(self):
-        return f"{self.type.capitalize()} - {self.description} (${self.price})"
+        return f"{self.item.name} (${self.item.price})"
