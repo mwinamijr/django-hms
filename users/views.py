@@ -10,8 +10,6 @@ from .models import Department, CustomUser as User
 from .serializers import UserSerializer, DepartmentSerializer
 
 
-
-
 class LoginView(APIView):
     def post(self, request):
         """
@@ -42,6 +40,7 @@ class LoginView(APIView):
                         "first_name": user.first_name,
                         "last_name": user.last_name,
                         "is_staff": user.is_staff,
+                        "role": user.role,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -51,8 +50,6 @@ class LoginView(APIView):
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
-
 
 
 class UserListView(APIView):
@@ -76,7 +73,9 @@ class UserListView(APIView):
         try:
             # Get the department instance if provided
             department_id = data.get("department")
-            department = Department.objects.get(id=department_id) if department_id else None
+            department = (
+                Department.objects.get(id=department_id) if department_id else None
+            )
 
             user = User.objects.create(
                 first_name=data.get("first_name", ""),
@@ -98,15 +97,13 @@ class UserListView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except Department.DoesNotExist:
-            return Response({"detail": "Invalid department ID"}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {"detail": "Invalid department ID"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         except Exception as e:
             message = {"detail": "User with this email or phone already exists"}
             return Response(message, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
 
 
 class UserDetailView(APIView):
@@ -136,7 +133,9 @@ class UserDetailView(APIView):
         try:
             # Retrieve department if provided
             department_id = data.get("department")
-            department = Department.objects.get(id=department_id) if department_id else None
+            department = (
+                Department.objects.get(id=department_id) if department_id else None
+            )
 
             # Update user fields
             user.first_name = data.get("first_name", user.first_name)
@@ -162,8 +161,10 @@ class UserDetailView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Department.DoesNotExist:
-            return Response({"detail": "Invalid department ID"}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {"detail": "Invalid department ID"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -179,8 +180,9 @@ class UserDetailView(APIView):
         """
         user = self.get_object(pk)
         user.delete()
-        return Response({"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
-
+        return Response(
+            {"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT
+        )
 
 
 # Department List View

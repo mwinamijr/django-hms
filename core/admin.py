@@ -15,6 +15,7 @@ from .models import (
     InsuranceCompany,
     HospitalItem,
     ItemType,
+    VisitComment,
 )
 
 admin.site.register(Patient)
@@ -32,3 +33,4 @@ admin.site.register(InsuranceCompany)
 admin.site.register(HospitalItem)
 admin.site.register(Insurance)
 admin.site.register(ItemType)
+admin.site.register(VisitComment)

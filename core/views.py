@@ -9,9 +9,13 @@ from .models import (
     Visit,
     MedicalHistory,
     Test,
+    Department,
     Patient,
     Prescription,
     Payment,
+    PaymentItem,
+    Insurance,
+    HospitalItem,
 )
 from users.models import CustomUser as User
 from .serializers import (
@@ -75,6 +79,7 @@ class PatientDetailView(APIView):
         """
         Update an entire patient record.
         """
+        print("pk:", pk, "data:", request.data)
         patient = self.get_object(pk)
         serializer = PatientSerializer(patient, data=request.data)
         if serializer.is_valid():
@@ -111,20 +116,17 @@ class VisitListView(APIView):
     """
 
     def get(self, request):
-        visits = Visit.objects.all()  # Get all visits
-        serializer = VisitSerializer(visits, many=True)  # Serialize the visits
-        return Response(serializer.data)  # Return the data in JSON format
+        visits = Visit.objects.all()
+        serializer = VisitSerializer(visits, many=True)
+        return Response(serializer.data)
 
     def post(self, request):
-        serializer = VisitSerializer(data=request.data)  # Deserialize the incoming data
+        serializer = VisitSerializer(data=request.data)
+        print(serializer.is_valid())
         if serializer.is_valid():
-            serializer.save()  # Save the new visit
-            return Response(
-                serializer.data, status=status.HTTP_201_CREATED
-            )  # Return the serialized data with a 201 status
-        return Response(
-            serializer.errors, status=status.HTTP_400_BAD_REQUEST
-        )  # Return validation errors if any
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VisitDetailView(APIView):
@@ -177,51 +179,81 @@ class AssignDoctorView(APIView):
         try:
             visit_id = request.data.get("visit_id")
             doctor_id = request.data.get("doctor_id")
-            is_insured = request.data.get(
-                "is_insured", False
-            )  # Indicates whether the patient is insured
+            department_id = request.data.get("department_id")
 
-            if not (visit_id and doctor_id):
+            if not (visit_id and doctor_id and department_id):
                 return Response(
-                    {"detail": "Missing required fields (visit_id, doctor_id)."},
+                    {
+                        "detail": "Missing required fields (visit_id, doctor_id, department_id)."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            with transaction.atomic():
-                # Fetch the visit and doctor
-                try:
-                    visit = Visit.objects.get(id=visit_id)
-                    doctor = User.objects.get(id=doctor_id, role="doctor")
-                except Visit.DoesNotExist:
+            # Fetch visit, department and patient
+            try:
+                visit = Visit.objects.get(id=visit_id)
+                patient = Patient.objects.get(id=visit.patient.id)
+                department = Department.objects.get(id=department_id)
+            except Visit.DoesNotExist:
+                return Response(
+                    {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+            except Patient.DoesNotExist:
+                return Response(
+                    {"detail": "Patient not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+            except Department.DoesNotExist:
+                return Response(
+                    {"detail": "Department not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Check if the patient is insured
+            is_insured = Insurance.objects.filter(patient=patient).exists()
+
+            # If the patient is **not insured**, check consultation fee payment
+            if not is_insured:
+                payment = Payment.objects.filter(visit=visit).first()
+                consultation_item = HospitalItem.objects.filter(
+                    name="consultation fee"
+                ).first()
+
+                if not payment or not consultation_item:
                     return Response(
-                        {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
+                        {"detail": "Consultation payment record not found."},
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
+
+                consultation_payment = PaymentItem.objects.filter(
+                    payment=payment,
+                    item=consultation_item,
+                ).first()
+
+                if not consultation_payment or consultation_payment.status == "pending":
+                    return Response(
+                        {"detail": "Consultation fee not paid or still pending."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Assign doctor in a transaction block
+            with transaction.atomic():
+                try:
+                    doctor = User.objects.get(id=doctor_id, role="doctor")
                 except User.DoesNotExist:
                     return Response(
                         {"detail": "Doctor not found."},
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                if not is_insured:
-                    # For cash patients: Check if consultation fee has been paid
-                    existing_payment = Payment.objects.filter(
-                        visit=visit, status="completed"
-                    ).first()
-
-                    if not existing_payment:
-                        return Response(
-                            {"detail": "Consultation fee not paid yet."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                # Assign the doctor to the visit
                 visit.assigned_doctor = doctor
+                visit.department = department
+                visit.status = "onprogress"
                 visit.save()
 
-                return Response(
-                    {"detail": "Doctor assigned successfully."},
-                    status=status.HTTP_200_OK,
-                )
+            return Response(
+                {"detail": "Doctor assigned successfully."},
+                status=status.HTTP_200_OK,
+            )
 
         except Exception as e:
             return Response(

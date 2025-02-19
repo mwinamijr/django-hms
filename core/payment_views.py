@@ -2,12 +2,15 @@ import logging
 from decimal import Decimal
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from users.permissions import IsCashier
 from .models import (
     Visit,
+    Insurance,
     Test,
     Prescription,
     Invoice,
@@ -16,7 +19,12 @@ from .models import (
     PaymentItem,
     HospitalItem,
 )
-from .serializers import InvoiceSerializer, InvoiceItemSerializer
+from .serializers import (
+    InvoiceSerializer,
+    InvoiceItemSerializer,
+    PaymentSerializer,
+    PaymentItemSerializer,
+)
 
 
 # Set up logging
@@ -30,7 +38,7 @@ class ConsultationPaymentView(APIView):
         """
         print(request.data)
         try:
-            # Extract data from the request
+            # Extract visit ID from request
             visit_id = request.data.get("visit_id")
 
             if not visit_id:
@@ -47,12 +55,13 @@ class ConsultationPaymentView(APIView):
                     {"detail": "Visit not found."}, status=status.HTTP_404_NOT_FOUND
                 )
 
-            is_insured = hasattr(visit.patient, "insurance")
+            # Check if the patient is insured
+            is_insured = Insurance.objects.filter(patient=visit.patient).exists()
 
             # Fetch the "Consultation Fee" HospitalItem
             try:
                 consultation_item = HospitalItem.objects.get(
-                    name="Consultation Fee".lower()
+                    name__iexact="Consultation Fee"
                 )
                 consultation_fee = consultation_item.price
             except HospitalItem.DoesNotExist:
@@ -62,26 +71,30 @@ class ConsultationPaymentView(APIView):
                 )
 
             if is_insured:
-                # Create or update the invoice for insurance
+                # Check if an insurance invoice already exists for this visit
                 invoice, created = Invoice.objects.get_or_create(
                     visit=visit,
-                    defaults={
-                        "total_amount": consultation_fee,
-                        "is_insurance": True,
-                    },
+                    defaults={"total_amount": consultation_fee, "is_insurance": True},
                 )
 
                 if not created:
-                    # Prevent duplicate charges
-                    if not InvoiceItem.objects.filter(
+                    # Prevent duplicate consultation charge
+                    if InvoiceItem.objects.filter(
                         invoice=invoice, item=consultation_item
                     ).exists():
-                        InvoiceItem.objects.create(
-                            invoice=invoice,
-                            item=consultation_item,
+                        return Response(
+                            {
+                                "detail": "Consultation invoice already exists for this visit.",
+                                "invoice_id": invoice.id,
+                                "total_amount": str(invoice.total_amount),
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
                         )
-                        invoice.total_amount += consultation_fee
-                        invoice.save()
+
+                    # Add consultation fee to invoice
+                    InvoiceItem.objects.create(invoice=invoice, item=consultation_item)
+                    invoice.total_amount += consultation_fee
+                    invoice.save()
 
                 return Response(
                     {
@@ -92,18 +105,18 @@ class ConsultationPaymentView(APIView):
                     status=status.HTTP_200_OK,
                 )
             else:
-                # Handle cash payment logic
-                # Check if there's already a pending payment for consultation
+                # Check if there's already a pending cash payment for consultation
                 existing_payment = Payment.objects.filter(
-                    visit=visit, status="pending"
+                    visit=visit, paymentitem__item=consultation_item
                 ).first()
 
                 if existing_payment:
                     return Response(
                         {
-                            "detail": "A pending payment for consultation already exists.",
+                            "detail": "A consultation fee payment already exists for this visit.",
                             "payment_id": existing_payment.id,
                             "amount": str(existing_payment.amount),
+                            "status": existing_payment.status,
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
@@ -112,14 +125,11 @@ class ConsultationPaymentView(APIView):
                 payment = Payment.objects.create(
                     visit=visit,
                     amount=consultation_fee,
-                    status="pending",  # Initially set to pending
+                    status="pending",
                 )
 
                 # Create a payment item for consultation
-                PaymentItem.objects.create(
-                    payment=payment,
-                    item=consultation_item,
-                )
+                PaymentItem.objects.create(payment=payment, item=consultation_item)
 
                 return Response(
                     {
@@ -130,6 +140,7 @@ class ConsultationPaymentView(APIView):
                     },
                     status=status.HTTP_200_OK,
                 )
+
         except Exception as e:
             return Response(
                 {"detail": f"An error occurred: {str(e)}"},
@@ -409,14 +420,20 @@ class CompletePaymentView(APIView):
     Mark a payment as completed. Only accessible to users with the cashier role.
     """
 
-    # permission_classes = [IsCashier]
+    permission_classes = [IsCashier]
 
-    def post(self, request):
+    def post(self, request, visit_id):
+        print(request.data)
         try:
             # Step 1: Validate input
             payment_id = request.data.get("payment_id")
+            item_ids = request.data.get(
+                "item_ids", []
+            )  # Expecting a list of payment item IDs
+            print("paymentId:", payment_id)
+            print("item ids:", item_ids)
+
             if not payment_id:
-                logger.warning("Payment ID not provided in the request.")
                 return Response(
                     {"detail": "Payment ID is required."},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -426,37 +443,44 @@ class CompletePaymentView(APIView):
             try:
                 payment = Payment.objects.get(id=payment_id)
             except Payment.DoesNotExist:
-                logger.error(f"Payment with ID {payment_id} not found.")
                 return Response(
-                    {"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND
+                    {"detail": f"Payment with ID {payment_id} not found."},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
             # Step 3: Check payment status
             if payment.status == "completed":
-                logger.info(f"Payment with ID {payment_id} is already completed.")
                 return Response(
-                    {"detail": "Payment is already marked as completed."},
+                    {"detail": f"Payment with ID {payment_id} is already completed."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Step 4: Mark payment as completed
+            # Step 4: Update provided paymentItems to "completed"
             with transaction.atomic():
-                payment.status = "completed"
-                payment.save()
+                updated_count = PaymentItem.objects.filter(
+                    id__in=item_ids, payment=payment
+                ).update(status="completed")
 
-            # Log success
-            logger.info(
-                f"Payment with ID {payment_id} marked as completed successfully."
-            )
+                # Step 5: Check if all paymentItems for this payment are completed
+                all_completed = not PaymentItem.objects.filter(
+                    payment=payment, status="pending"
+                ).exists()
+
+                if all_completed:
+                    payment.status = "completed"
+                    payment.save()
 
             return Response(
-                {"detail": "Payment completed successfully."}, status=status.HTTP_200_OK
+                {
+                    "detail": f"{updated_count} Payment Item(s) updated successfully.",
+                    "payment_status": "completed" if all_completed else "pending",
+                },
+                status=status.HTTP_200_OK,
             )
 
         except Exception as e:
-            logger.error(f"Error completing payment {payment_id}: {str(e)}")
             return Response(
-                {"detail": f"An error occurred: {str(e)}"},
+                {"detail": f"Error completing payment {payment_id}: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -535,6 +559,77 @@ class SubmitToInsuranceView(APIView):
                 {"detail": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+# Payment Views
+
+
+class VisitPaymentItemListView(generics.ListAPIView):
+    """
+    API to list all payment items for a specific visit.
+    """
+
+    serializer_class = PaymentItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        visit_id = self.kwargs.get("visit_id")
+        return PaymentItem.objects.filter(payment__visit_id=visit_id)
+
+
+class VisitPaymentDetailView(generics.RetrieveAPIView):
+    """
+    API to retrieve a specific payment associated with a visit.
+    """
+
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        visit_id = self.kwargs.get("visit_id")
+        return get_object_or_404(Payment, visit_id=visit_id)
+
+
+class PaymentListView(APIView):
+    # permission_classes = [IsCashier]
+
+    def get(self, request):
+        invoices = Payment.objects.all()
+        serializer = PaymentSerializer(invoices, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PaymentDetailView(APIView):
+    # permission_classes = [IsCashier]
+
+    def get_object(self, pk):
+        return get_object_or_404(Payment, pk=pk)
+
+    def get(self, request, pk):
+        invoice = self.get_object(pk)
+        serializer = PaymentSerializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PaymentItemListView(APIView):
+    # permission_classes = [IsCashier]
+
+    def get(self, request):
+        invoices = PaymentItem.objects.all()
+        serializer = PaymentItemSerializer(invoices, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PaymentItemDetailView(APIView):
+    # permission_classes = [IsCashier]
+
+    def get_object(self, pk):
+        return get_object_or_404(PaymentItem, pk=pk)
+
+    def get(self, request, pk):
+        invoice = self.get_object(pk)
+        serializer = PaymentItemSerializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 # Invoice Views

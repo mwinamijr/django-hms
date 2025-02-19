@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from users.models import Department, CustomUser as User
+from users.serializers import DepartmentSerializer, UserSerializer
 from .models import (
     Patient,
     Visit,
@@ -15,6 +16,7 @@ from .models import (
     HospitalItem,
     Insurance,
     ItemType,
+    VisitComment,
 )
 
 
@@ -89,7 +91,6 @@ class HospitalItemSerializer(serializers.ModelSerializer):
 
 
 class ItemTypeSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = ItemType
         fields = "__all__"
@@ -125,14 +126,17 @@ class InsuranceSerializer(serializers.ModelSerializer):
 
 
 class VisitSerializer(serializers.ModelSerializer):
-    department_name = serializers.SerializerMethodField()
-    doctor_name = serializers.SerializerMethodField()
+    department_details = DepartmentSerializer(source="department", read_only=True)
+    doctor_details = UserSerializer(source="assigned_doctor", read_only=True)
     patient_details = PatientSerializer(
         source="patient", read_only=True
     )  # Full patient details in GET responses
 
     department = serializers.PrimaryKeyRelatedField(
-        queryset=Department.objects.all(), write_only=True  # Accept ID in input
+        queryset=Department.objects.all(),
+        write_only=True,  # Accept ID in input
+        required=False,  # Make department optional
+        allow_null=True,  # Allow null values
     )
     assigned_doctor = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(role="doctor"),
@@ -151,14 +155,34 @@ class VisitSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "patient": {"write_only": True},  # Ensure patient ID is accepted in input
         }
+        read_only_fields = ["visit_date"]
 
-    def get_department_name(self, obj):
-        return obj.department.name if obj.department else None
 
-    def get_doctor_name(self, obj):
-        if obj.assigned_doctor:
-            return f"{obj.assigned_doctor.first_name} {obj.assigned_doctor.last_name}"
-        return None
+class VisitCommentSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
+    visit_number = serializers.CharField(source="visit.visit_number", read_only=True)
+
+    class Meta:
+        model = VisitComment
+        fields = [
+            "id",
+            "visit",
+            "visit_number",
+            "description",
+            "created_by",
+            "created_by_name",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at", "created_by"]
+
+    def create(self, validated_data):
+        """Ensure the user who creates the comment is set automatically."""
+        request = self.context.get("request")  # Get request context
+        if request and hasattr(request, "user"):
+            validated_data["created_by"] = request.user  # Assign the logged-in user
+        return super().create(validated_data)
 
 
 class VitalSerializer(serializers.ModelSerializer):
@@ -190,21 +214,41 @@ class PrescriptionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class PaymentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Payment
-        fields = "__all__"
-
-
 class PaymentItemSerializer(serializers.ModelSerializer):
-    item = HospitalItemSerializer(read_only=True)
-    item_id = serializers.PrimaryKeyRelatedField(
-        queryset=HospitalItem.objects.all(), write_only=True, source="item"
+    item_name = serializers.CharField(source="item.name", read_only=True)
+    item_price = serializers.DecimalField(
+        source="item.price", max_digits=10, decimal_places=2, read_only=True
     )
+    item_type = serializers.CharField(source="item.item_type.name", read_only=True)
 
     class Meta:
         model = PaymentItem
-        fields = ["id", "payment", "item", "item_id", "status"]
+        fields = [
+            "id",
+            "payment",
+            "item",
+            "item_name",
+            "item_price",
+            "item_type",
+            "status",
+        ]
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    items = PaymentItemSerializer(many=True, read_only=True)
+    visit_number = serializers.CharField(source="visit.visit_number", read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            "id",
+            "visit",
+            "visit_number",
+            "amount",
+            "status",
+            "created_at",
+            "items",
+        ]
 
 
 class InvoiceSerializer(serializers.ModelSerializer):

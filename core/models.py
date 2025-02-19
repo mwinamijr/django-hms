@@ -94,9 +94,9 @@ class Patient(models.Model):
     first_name = models.CharField(max_length=50)
     middle_name = models.CharField(max_length=50, null=True, blank=True)
     last_name = models.CharField(max_length=50)
-    date_of_birth = models.DateField(validators=[validate_dob])
-    email = models.EmailField(unique=True, db_index=True)
-    phone = models.CharField(max_length=15)
+    date_of_birth = models.DateField()
+    email = models.EmailField(null=True, blank=True)
+    phone = models.CharField(unique=True, db_index=True, max_length=15)
     address = models.TextField()
     registration_date = models.DateField(auto_now_add=True, null=True, blank=True)
     occupation = models.CharField(max_length=50, null=True, blank=True)
@@ -116,11 +116,6 @@ class Patient(models.Model):
         null=True,
     )
     priority = models.BooleanField(default=False)
-    payment_method = models.CharField(
-        max_length=50,
-        choices=[("cash", "Cash"), ("insurance", "Insurance")],
-        default="cash",
-    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -142,6 +137,10 @@ class Patient(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.patient_number})"
+
+    @property
+    def payment_method(self):
+        return "insurance" if hasattr(self, "insurance") else "cash"
 
 
 class Insurance(models.Model):
@@ -165,7 +164,11 @@ class Visit(models.Model):
         Patient, on_delete=models.CASCADE, related_name="visits"
     )
     department = models.ForeignKey(
-        Department, on_delete=models.CASCADE, related_name="visits"
+        Department,
+        on_delete=models.SET_NULL,
+        related_name="visits",
+        null=True,
+        blank=True,
     )
     assigned_doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
@@ -177,9 +180,20 @@ class Visit(models.Model):
         blank=True,
         related_name="assigned_visits",
     )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_visits",
+    )
     status = models.CharField(
         max_length=20,
-        choices=[("pending", "Pending"), ("completed", "Completed")],
+        choices=[
+            ("pending", "Pending"),
+            ("onprogress", "On Progress"),
+            ("completed", "Completed"),
+        ],
         default="pending",
     )
     visit_date = models.DateField(auto_now_add=True)
@@ -209,6 +223,18 @@ class Visit(models.Model):
             self.visit_number = f"{today_str}{new_number:03d}"
 
         super().save(*args, **kwargs)
+
+
+class VisitComment(models.Model):
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="comments")
+    description = models.TextField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comment by {self.created_by} on {self.visit.visit_number}"
 
 
 class Payment(models.Model):
@@ -383,4 +409,4 @@ class InvoiceItem(models.Model):
     )
 
     def __str__(self):
-        return f"{self.item.name} (${self.item.price})"
+        return f"{self.invoice.visit.patient.first_name} {self.invoice.visit.patient.last_name} - {self.item.name} (${self.item.price})"

@@ -1,13 +1,19 @@
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from .models import Insurance, HospitalItem, InsuranceCompany, ItemType
-from .serializers import InsuranceSerializer, HospitalItemSerializer, InsuranceCompanySerializer, ItemTypeSerializer
+from users.models import CustomUser as User
+from .models import Insurance, HospitalItem, InsuranceCompany, ItemType, VisitComment
+from .serializers import (
+    InsuranceSerializer,
+    HospitalItemSerializer,
+    InsuranceCompanySerializer,
+    ItemTypeSerializer,
+    VisitCommentSerializer,
+)
 import openpyxl
-
 
 
 class InsuranceListView(APIView):
@@ -83,8 +89,10 @@ class InsuranceDetailView(APIView):
         """
         insurance = self.get_object(pk)
         insurance.delete()
-        return Response({"detail": "Insurance record deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
-
+        return Response(
+            {"detail": "Insurance record deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
 
 class HospitalItemListView(APIView):
@@ -148,7 +156,9 @@ class HospitalItemDetailView(APIView):
         Partially update a hospital item record.
         """
         hospital_item = self.get_object(pk)
-        serializer = HospitalItemSerializer(hospital_item, data=request.data, partial=True)
+        serializer = HospitalItemSerializer(
+            hospital_item, data=request.data, partial=True
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -160,7 +170,10 @@ class HospitalItemDetailView(APIView):
         """
         hospital_item = self.get_object(pk)
         hospital_item.delete()
-        return Response({"detail": "Hospital item deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"detail": "Hospital item deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
 
 class ItemTypeListView(APIView):
@@ -236,8 +249,10 @@ class ItemTypeDetailView(APIView):
         """
         hospital_item = self.get_object(pk)
         hospital_item.delete()
-        return Response({"detail": "Item type deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
-
+        return Response(
+            {"detail": "Item type deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
 
 class InsuranceCompanyListView(APIView):
@@ -301,7 +316,9 @@ class InsuranceCompanyDetailView(APIView):
         Partially update an insurance company record.
         """
         insurance_company = self.get_object(pk)
-        serializer = InsuranceCompanySerializer(insurance_company, data=request.data, partial=True)
+        serializer = InsuranceCompanySerializer(
+            insurance_company, data=request.data, partial=True
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -313,13 +330,17 @@ class InsuranceCompanyDetailView(APIView):
         """
         insurance_company = self.get_object(pk)
         insurance_company.delete()
-        return Response({"detail": "Insurance company deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"detail": "Insurance company deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
 
 class HospitalBulkUploadView(APIView):
     """
     API View to handle bulk uploading of hospital items from an Excel file.
     """
+
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, *args, **kwargs):
@@ -332,40 +353,58 @@ class HospitalBulkUploadView(APIView):
 
         try:
             workbook = openpyxl.load_workbook(file)
-            sheet = workbook.active  
+            sheet = workbook.active
 
-            required_columns = ["name", "description", "price", "item_type_id", "insurance_company_ids"]
+            required_columns = [
+                "name",
+                "description",
+                "price",
+                "item_type_id",
+                "insurance_company_ids",
+            ]
 
             excel_headers = [cell.value for cell in sheet[1]]
 
             if not all(col in excel_headers for col in required_columns):
                 return Response(
-                    {"error": f"Missing columns. Expected: {', '.join(required_columns)}"},
+                    {
+                        "error": f"Missing columns. Expected: {', '.join(required_columns)}"
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             created_items = []
             not_created = []
 
-            for i, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            for i, row in enumerate(
+                sheet.iter_rows(min_row=2, values_only=True), start=2
+            ):
                 item_data = dict(zip(required_columns, row))
 
                 try:
-                    if not ItemType.objects.filter(id=item_data["item_type_id"]).exists():
-                        raise ValueError(f"ItemType ID '{item_data['item_type_id']}' does not exist.")
+                    if not ItemType.objects.filter(
+                        id=item_data["item_type_id"]
+                    ).exists():
+                        raise ValueError(
+                            f"ItemType ID '{item_data['item_type_id']}' does not exist."
+                        )
 
-                    
                     insurance_companies = []
                     if item_data["insurance_company_ids"]:
-                        insurance_ids = str(item_data["insurance_company_ids"]).split(",")
+                        insurance_ids = str(item_data["insurance_company_ids"]).split(
+                            ","
+                        )
                         for insurance_id in insurance_ids:
-                            insurance_obj = InsuranceCompany.objects.filter(id=insurance_id.strip()).first()
+                            insurance_obj = InsuranceCompany.objects.filter(
+                                id=insurance_id.strip()
+                            ).first()
                             if insurance_obj:
                                 insurance_companies.append(insurance_obj)
                             else:
-                                raise ValueError(f"InsuranceCompany ID '{insurance_id.strip()}' does not exist.")
+                                raise ValueError(
+                                    f"InsuranceCompany ID '{insurance_id.strip()}' does not exist."
+                                )
 
-                  
                     serializer = HospitalItemSerializer(data=item_data)
 
                     if serializer.is_valid():
@@ -391,3 +430,111 @@ class HospitalBulkUploadView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VisitCommentListView(APIView):
+    """
+    Handles listing all comments for a visit and creating new comments.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, visit_id):
+        """Retrieve all comments for a given visit"""
+        comments = VisitComment.objects.filter(visit__id=visit_id).order_by(
+            "-created_at"
+        )
+        serializer = VisitCommentSerializer(comments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, visit_id):
+        """Create a new visit comment and assign the logged-in user"""
+
+        data = request.data.copy()
+        data["visit"] = visit_id  # Ensure the visit ID is included
+
+        serializer = VisitCommentSerializer(
+            data=data, context={"request": request}
+        )  # Pass request context
+        if serializer.is_valid():
+            serializer.save()  # Save the comment with `created_by`
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VisitCommentDeatilView(APIView):
+    """
+    Handles retrieving, updating, and deleting a single visit comment.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, comment_id):
+        try:
+            return VisitComment.objects.get(id=comment_id)
+        except VisitComment.DoesNotExist:
+            return None
+
+    def get(self, request, comment_id):
+        comment = self.get_object(comment_id)
+        if not comment:
+            return Response(
+                {"detail": "Comment not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = VisitCommentSerializer(comment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, comment_id):
+        """Update a specific comment (only allowed for the creator)"""
+        comment = self.get_object(comment_id)
+        if not comment:
+            return Response(
+                {"detail": "Comment not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if comment.created_by != request.user:
+            raise PermissionDenied("You are not allowed to modify this comment.")
+
+        serializer = VisitCommentSerializer(comment, data=request.data, partial=False)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, comment_id):
+        """Partially update a specific comment"""
+        comment = self.get_object(comment_id)
+        if not comment:
+            return Response(
+                {"detail": "Comment not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if comment.created_by != request.user:
+            raise PermissionDenied("You are not allowed to modify this comment.")
+
+        serializer = VisitCommentSerializer(comment, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, comment_id):
+        """Delete a specific comment (only allowed for the creator)"""
+        comment = self.get_object(comment_id)
+        if not comment:
+            return Response(
+                {"detail": "Comment not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if comment.created_by != request.user:
+            raise PermissionDenied("You are not allowed to delete this comment.")
+
+        comment.delete()
+        return Response(
+            {"detail": "Comment deleted successfully."},
+            status=status.HTTP_204_NO_CONTENT,
+        )

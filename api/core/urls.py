@@ -32,7 +32,7 @@ urlpatterns = [
     path("visits/<int:visit_id>/", VisitDetailView.as_view(), name="visit-detail"),
     # Visits and Assign Doctor
     path(
-        "visits/<int:visit_id>/assign-doctor/",
+        "visits/assign-doctor/",
         AssignDoctorView.as_view(),
         name="assign_doctor",
     ),
