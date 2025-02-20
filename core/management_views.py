@@ -35,7 +35,6 @@ class InsuranceListView(APIView):
         """
         Create a new insurance record.
         """
-        print(request.data)
         serializer = InsuranceSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()

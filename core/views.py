@@ -79,7 +79,6 @@ class PatientDetailView(APIView):
         """
         Update an entire patient record.
         """
-        print("pk:", pk, "data:", request.data)
         patient = self.get_object(pk)
         serializer = PatientSerializer(patient, data=request.data)
         if serializer.is_valid():
@@ -122,7 +121,6 @@ class VisitListView(APIView):
 
     def post(self, request):
         serializer = VisitSerializer(data=request.data)
-        print(serializer.is_valid())
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)

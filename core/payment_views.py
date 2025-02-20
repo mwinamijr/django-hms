@@ -74,10 +74,10 @@ class ConsultationPaymentView(APIView):
                 # Check if an insurance invoice already exists for this visit
                 invoice, created = Invoice.objects.get_or_create(
                     visit=visit,
-                    defaults={"total_amount": consultation_fee, "is_insurance": True},
+                    defaults={"total_amount": 0, "is_insurance": True},
                 )
 
-                if not created:
+                if invoice:
                     # Prevent duplicate consultation charge
                     if InvoiceItem.objects.filter(
                         invoice=invoice, item=consultation_item
@@ -93,7 +93,7 @@ class ConsultationPaymentView(APIView):
 
                     # Add consultation fee to invoice
                     InvoiceItem.objects.create(invoice=invoice, item=consultation_item)
-                    invoice.total_amount += consultation_fee
+                    invoice.total_amount = consultation_fee
                     invoice.save()
 
                 return Response(
@@ -105,31 +105,45 @@ class ConsultationPaymentView(APIView):
                     status=status.HTTP_200_OK,
                 )
             else:
-                # Check if there's already a pending cash payment for consultation
-                existing_payment = Payment.objects.filter(
-                    visit=visit, paymentitem__item=consultation_item
-                ).first()
-
-                if existing_payment:
-                    return Response(
-                        {
-                            "detail": "A consultation fee payment already exists for this visit.",
-                            "payment_id": existing_payment.id,
-                            "amount": str(existing_payment.amount),
-                            "status": existing_payment.status,
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                # Create the payment entry
-                payment = Payment.objects.create(
+                # Check if an payment for this visit already exists
+                payment, created = Payment.objects.get_or_create(
                     visit=visit,
-                    amount=consultation_fee,
-                    status="pending",
+                    defaults={"amount": 0, "status": "pending"},
+                )
+                print("payment", payment)
+                print(
+                    "if exist:",
+                    PaymentItem.objects.filter(
+                        payment=payment, item=consultation_item
+                    ).exists(),
                 )
 
-                # Create a payment item for consultation
-                PaymentItem.objects.create(payment=payment, item=consultation_item)
+                print("not created", not created)
+                if payment:
+                    # Prevent duplicate consultation charge
+                    if PaymentItem.objects.filter(
+                        payment=payment, item=consultation_item
+                    ).exists():
+                        return Response(
+                            {
+                                "detail": "Consultation payment already exists for this visit.",
+                                "payment_id": payment.id,
+                                "amount": str(payment.amount),
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # Add consultation fee to payment
+                    PaymentItem.objects.create(payment=payment, item=consultation_item)
+                    print(
+                        "created",
+                        PaymentItem.objects.filter(
+                            payment=payment, item=consultation_item
+                        ),
+                    )
+
+                    payment.amount = consultation_fee
+                    payment.save()
 
                 return Response(
                     {

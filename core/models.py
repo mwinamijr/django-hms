@@ -234,7 +234,7 @@ class VisitComment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Comment by {self.created_by} on {self.visit.visit_number}"
+        return f"Comment by {self.created_by} on {self.visit.visit_number} - {self.visit.patient.first_name} {self.visit.patient.last_name} "
 
 
 class Payment(models.Model):
@@ -273,7 +273,7 @@ class PaymentItem(models.Model):
     )
 
     def __str__(self):
-        return f"{self.item.name} (${self.item.price})"
+        return f"{self.payment.visit.patient.first_name} {self.payment.visit.patient.last_name} - {self.item.name} (${self.item.price})"
 
     class Meta:
         verbose_name = "Payment Item"
